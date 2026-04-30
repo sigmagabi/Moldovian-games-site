@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ro"><head></head><body contenteditable="false">
+The content of the body element is displayed in your browser.
+
+
+
+
+
+
+    <meta charset="UTF-8">
+    <title>Block Blast - Perfect Position</title>
+    <style>
+        body {
+            margin: 0;
+            background: #121213;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #ui-top {
+            position: absolute;
+            top: 20px;
+            width: 90%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #score-box { font-size: 32px; font-weight: bold; color: #f1c40f; }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(8, 48px);
+            grid-template-rows: repeat(8, 48px);
+            gap: 4px;
+            background: #1e1e20;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+
+        .cell {
+            width: 48px;
+            height: 48px;
+            background: #2a2a2e;
+            border-radius: 4px;
+        }
+
+        #piece-area {
+            margin-top: 40px;
+            display: flex;
+            gap: 30px;
+            height: 200px;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .piece {
+            display: grid;
+            gap: 4px;
+            cursor: grab;
+            transition: transform 0.2s;
+        }
+
+        .p-cell {
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+        }
+
+        .dragging {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000;
+            transform: scale(1.1);
+            opacity: 0.9;
+        }
+
+        .btn-download {
+            padding: 12px 20px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+
+
+
+    <div id="ui-top">
+        <div id="score-box">SCOR: <span id="score">301</span></div>
+        <button class="btn-download" onclick="downloadGame()">📥 DESCARCĂ JOCUL</button>
+    </div>
+
+    <div id="grid"><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell"></div><div class="cell" style="background: rgb(46, 204, 113);"></div><div class="cell" style="background: rgb(46, 204, 113);"></div><div class="cell" style="background: rgb(46, 204, 113);"></div><div class="cell" style="background: rgb(46, 204, 113);"></div><div class="cell" style="background: rgb(52, 152, 219);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell" style="background: rgb(149, 165, 166);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell"></div><div class="cell" style="background: rgb(241, 196, 15);"></div><div class="cell" style="background: rgb(241, 196, 15);"></div><div class="cell" style="background: rgb(231, 76, 60);"></div><div class="cell" style="background: rgb(236, 240, 241);"></div><div class="cell" style="background: rgb(149, 165, 166);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div><div class="cell" style="background: rgb(42, 42, 46);"></div></div>
+    <div id="piece-area"><div class="piece" style="grid-template-columns: repeat(1, 40px);"><div class="p-cell" style="background-color: rgb(236, 240, 241);"></div></div><div class="piece" style="grid-template-columns: repeat(2, 40px);"><div class="p-cell" style="background-color: rgb(230, 126, 34);"></div><div class="p-cell" style="background-color: rgb(230, 126, 34);"></div><div class="p-cell" style="background-color: rgb(230, 126, 34);"></div><div class="p-cell" style="opacity: 0;"></div><div class="p-cell" style="background-color: rgb(230, 126, 34);"></div><div class="p-cell" style="opacity: 0;"></div></div></div>
+
+    <script>
+        const GRID_SIZE = 8;
+        const CELL_SIZE = 52; // 48px + 4px gap
+        let score = 0;
+        let board = Array(8).fill().map(() => Array(8).fill(0));
+        
+        const SHAPES = [
+            { s: [[1,1,1]], c: '#3498db' },
+            { s: [[1,1],[1,1]], c: '#f1c40f' },
+            { s: [[1,1,1,1]], c: '#2ecc71' },
+            { s: [[1,1,1],[0,1,0]], c: '#9b59b6' },
+            { s: [[1,1],[1,0],[1,0]], c: '#e67e22' },
+            { s: [[1,0],[1,1],[0,1]], c: '#e74c3c' },
+            { s: [[1,1,1],[1,1,1],[1,1,1]], c: '#95a5a6' },
+            { s: [[1]], c: '#ecf0f1' }
+        ];
+
+        const gridEl = document.getElementById('grid');
+        const pieceArea = document.getElementById('piece-area');
+
+        function init() {
+            gridEl.innerHTML = '';
+            for(let r=0; r<8; r++) {
+                for(let c=0; c<8; c++) {
+                    const div = document.createElement('div');
+                    div.className = 'cell';
+                    gridEl.appendChild(div);
+                }
+            }
+            spawnPieces();
+        }
+
+        function spawnPieces() {
+            pieceArea.innerHTML = '';
+            for(let i=0; i<3; i++) {
+                const shape = SHAPES[Math.floor(Math.random()*SHAPES.length)];
+                createPieceUI(shape);
+            }
+        }
+
+        function createPieceUI(shapeObj) {
+            const container = document.createElement('div');
+            container.className = 'piece';
+            container.style.gridTemplateColumns = `repeat(${shapeObj.s[0].length}, 40px)`;
+            
+            shapeObj.s.forEach(row => {
+                row.forEach(cell => {
+                    const d = document.createElement('div');
+                    d.className = 'p-cell';
+                    if(cell) d.style.backgroundColor = shapeObj.c;
+                    else d.style.opacity = '0';
+                    container.appendChild(d);
+                });
+            });
+
+            container.onmousedown = (e) => startDrag(e, container, shapeObj);
+            container.ontouchstart = (e) => startDrag(e.touches[0], container, shapeObj);
+            pieceArea.appendChild(container);
+        }
+
+        function startDrag(e, el, shapeObj) {
+            const clone = el.cloneNode(true);
+            clone.classList.add('dragging');
+            // Corecție: folosim celule de mărimea grilei pentru clona trasă
+            clone.style.gridTemplateColumns = `repeat(${shapeObj.s[0].length}, 48px)`;
+            clone.querySelectorAll('.p-cell').forEach(c => {
+                c.style.width = '48px';
+                c.style.height = '48px';
+            });
+            
+            document.body.appendChild(clone);
+            el.style.visibility = 'hidden';
+
+            const move = (ev) => {
+                const x = ev.clientX || (ev.touches ? ev.touches[0].clientX : 0);
+                const y = ev.clientY || (ev.touches ? ev.touches[0].clientY : 0);
+                // Poziționăm colțul stânga-sus al piesei fix sub mouse (cu un mic offset de 20px)
+                clone.style.left = (x - 24) + 'px';
+                clone.style.top = (y - 24) + 'px';
+            };
+
+            const stop = (ev) => {
+                window.removeEventListener('mousemove', move);
+                window.removeEventListener('mouseup', stop);
+                window.removeEventListener('touchmove', move);
+                window.removeEventListener('touchend', stop);
+                
+                const finalX = ev.clientX || (ev.changedTouches ? ev.changedTouches[0].clientX : 0);
+                const finalY = ev.clientY || (ev.changedTouches ? ev.changedTouches[0].clientY : 0);
+                
+                const rect = gridEl.getBoundingClientRect();
+                
+                // Calculăm rândul și coloana bazându-ne pe poziția colțului stânga-sus al clonei
+                const col = Math.round((finalX - rect.left - 24) / CELL_SIZE);
+                const row = Math.round((finalY - rect.top - 24) / CELL_SIZE);
+
+                if(tryPlace(shapeObj.s, row, col, shapeObj.c)) {
+                    el.remove();
+                    if(pieceArea.children.length === 0) spawnPieces();
+                    checkLines();
+                } else {
+                    el.style.visibility = 'visible';
+                }
+                clone.remove();
+            };
+
+            window.addEventListener('mousemove', move);
+            window.addEventListener('mouseup', stop);
+            window.addEventListener('touchmove', move, {passive: false});
+            window.addEventListener('touchend', stop);
+            move(e);
+        }
+
+        function tryPlace(shape, r, c, color) {
+            // Verificare limite grilă
+            if(r < 0 || c < 0 || r + shape.length > 8 || c + shape[0].length > 8) return false;
+
+            // Verificare dacă locul e liber
+            for(let i=0; i<shape.length; i++) {
+                for(let j=0; j<shape[i].length; j++) {
+                    if(shape[i][j] && board[r+i][c+j] !== 0) return false;
+                }
+            }
+
+            // Plasare efectivă
+            for(let i=0; i<shape.length; i++) {
+                for(let j=0; j<shape[i].length; j++) {
+                    if(shape[i][j]) {
+                        board[r+i][c+j] = color;
+                        gridEl.children[(r+i)*8 + (c+j)].style.background = color;
+                    }
+                }
+            }
+            score += (shape.flat().filter(x => x).length);
+            updateScore();
+            return true;
+        }
+
+        function checkLines() {
+            let rowsToClear = [];
+            let colsToClear = [];
+
+            for(let i=0; i<8; i++) {
+                if(board[i].every(cell => cell !== 0)) rowsToClear.push(i);
+                let colFull = true;
+                for(let j=0; j<8; j++) if(board[j][i] === 0) colFull = false;
+                if(colFull) colsToClear.push(i);
+            }
+
+            rowsToClear.forEach(r => {
+                board[r].fill(0);
+                for(let c=0; c<8; c++) gridEl.children[r*8+c].style.background = '#2a2a2e';
+            });
+            colsToClear.forEach(c => {
+                for(let r=0; r<8; r++) {
+                    board[r][c] = 0;
+                    gridEl.children[r*8+c].style.background = '#2a2a2e';
+                }
+            });
+
+            if(rowsToClear.length > 0 || colsToClear.length > 0) {
+                score += (rowsToClear.length + colsToClear.length) * 50;
+                updateScore();
+            }
+        }
+
+        function updateScore() {
+            document.getElementById('score').innerText = score;
+        }
+
+        function downloadGame() {
+            const html = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+            const blob = new Blob([html], {type: 'text/html'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'BlockBlast_Corectat.html';
+            a.click();
+        }
+
+        init();
+    </script>
+
+</body></html>

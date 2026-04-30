@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Labirint Mare – Supraviețuire (monstru mai lent)</title>
+<style>
+  :root{ --bg:#0a0f1a; --ink:#eaf0ff; --line:#25406f; --monster:#ff6b6b; --player:#7ad1ff }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font-family:system-ui;margin:0}
+  header{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 12px}
+  .hud{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pill{background:#0d1735;border:1px solid #203054;border-radius:999px;padding:6px 10px}
+  .btns{display:flex;gap:8px}
+  button{appearance:none;border:none;background:linear-gradient(180deg,#1b2749,#10182f);color:var(--ink);border:1px solid #2a3a62;padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:700}
+  button:active{transform:translateY(1px)}
+  .wrap{max-width:1024px;margin:0 auto}
+  canvas{display:block;margin:8px auto 16px;background:#060a14;border:2px solid #1a2645;border-radius:8px;box-shadow:0 0 20px #000}
+  .msg{position:fixed;left:50%;top:12px;transform:translateX(-50%);background:#0b1024cc;border:1px solid #3a4bb3;border-radius:10px;padding:8px 12px;font:14px ui-monospace,monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="hud">
+      <div class="pill">⏱️ Timp: <b id="time">0.00s</b></div>
+      <div class="pill">🧭 Dimensiune: <b id="sizeLbl">31×31</b></div>
+    </div>
+    <div class="btns">
+      <button id="btnNew">Labirint nou</button>
+      <button id="btnRestart">Restart</button>
+    </div>
+  </header>
+  <canvas id="game" width="800" height="800"></canvas>
+  <div class="msg" id="status" style="display:none"></div>
+</div>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const cvs = $('#game');
+  const ctx = cvs.getContext('2d');
+  const timeLbl = $('#time');
+  const sizeLbl = $('#sizeLbl');
+  const status = $('#status');
+  const btnNew = $('#btnNew');
+  const btnRestart = $('#btnRestart');
+
+  // ===== Config =====
+  let DIM = 31;           // numărul de celule pe latură
+  const EXTRA_GAPS_RATIO = 0.10; // câte "găuri" suplimentare (10% din celule)
+  const PLAYER_STEP_CD = 1/3;   // ~0.333s per pas (≈ 3 celule/sec) – viteza ta = 3
+  const MONSTER_STEP_CD = 3;     // 3s per pas (≈ 0.333 celule/sec) – viteza lui = 2/6
+
+  let cell;                // mărimea unei celule în px (calculată la fit)
+  let maze = [];
+  function idx(x,y){ return y*DIM + x; }
+
+  function genMaze(){
+    // cells cu pereți: t/r/b/l
+    maze = new Array(DIM*DIM).fill(0).map((_,i)=>({
+      x:i%DIM, y:Math.floor(i/DIM), walls:{t:true,r:true,b:true,l:true}, v:false
+    }));
+    // DFS backtracker (labirint perfect – conectat)
+    const stack=[]; const start=maze[idx(0,0)]; start.v=true; stack.push(start);
+    const dirs=[['t',0,-1,'b'],['r',1,0,'l'],['b',0,1,'t'],['l',-1,0,'r']];
+    while(stack.length){
+      const cur = stack[stack.length-1];
+      const neigh=[];
+      for(const [d,dx,dy,opp] of dirs){
+        const nx=cur.x+dx, ny=cur.y+dy;
+        if(nx>=0 && ny>=0 && nx<DIM && ny<DIM){
+          const n=maze[idx(nx,ny)]; if(!n.v) neigh.push([d,n,opp]);
+        }
+      }
+      if(neigh.length){
+        const [d,n,opp] = neigh[Math.floor(Math.random()*neigh.length)];
+        cur.walls[d]=false; n.walls[opp]=false; n.v=true; stack.push(n);
+      } else { stack.pop(); }
+    }
+    // Găuri suplimentare: deschide pereți în ambele celule
+    const sides=['t','r','b','l'];
+    for(let k=0;k<Math.floor(DIM*DIM*EXTRA_GAPS_RATIO);k++){
+      const c = maze[Math.floor(Math.random()*maze.length)];
+      const s = sides[Math.floor(Math.random()*4)];
+      let nx=c.x, ny=c.y, opp='';
+      if(s==='t'){ ny=c.y-1; opp='b'; }
+      if(s==='r'){ nx=c.x+1; opp='l'; }
+      if(s==='b'){ ny=c.y+1; opp='t'; }
+      if(s==='l'){ nx=c.x-1; opp='r'; }
+      if(nx>=0 && ny>=0 && nx<DIM && ny<DIM){
+        c.walls[s]=false; maze[idx(nx,ny)].walls[opp]=false;
+      }
+    }
+  }
+
+  function fit(){
+    const side = Math.min(window.innerWidth-32, window.innerHeight-140);
+    const sz = Math.max(500, Math.min(900, side));
+    cvs.width = cvs.height = sz; cell = Math.floor(sz / DIM);
+  }
+
+  function drawMaze(){
+    ctx.fillStyle = '#061021'; ctx.fillRect(0,0,cvs.width,cvs.height);
+    ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--line') || '#25406f';
+    ctx.lineWidth = 2;
+    for(const c of maze){
+      const x=c.x*cell, y=c.y*cell;
+      if(c.walls.t){ ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+cell,y); ctx.stroke(); }
+      if(c.walls.r){ ctx.beginPath(); ctx.moveTo(x+cell,y); ctx.lineTo(x+cell,y+cell); ctx.stroke(); }
+      if(c.walls.b){ ctx.beginPath(); ctx.moveTo(x,y+cell); ctx.lineTo(x+cell,y+cell); ctx.stroke(); }
+      if(c.walls.l){ ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y+cell); ctx.stroke(); }
+    }
+  }
+
+  // ===== Actori =====
+  const player = { x:0, y:0 };
+  const monster = { x:0, y:0 };
+  let playerCD=0, monsterCD=0;
+
+  function placeActors(){
+    player.x = 0; player.y = 0;
+    monster.x = DIM-1; monster.y = DIM-1;
+    playerCD = monsterCD = 0;
+  }
+
+  function centerXY(cx,cy){ return [cx*cell + cell/2, cy*cell + cell/2]; }
+
+  function drawActors(){
+    ctx.fillStyle = '#2ecc71'; let p=centerXY(0,0); ctx.beginPath(); ctx.arc(p[0],p[1], Math.max(3,cell*0.18), 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#f1c40f'; p=centerXY(DIM-1,DIM-1); ctx.beginPath(); ctx.arc(p[0],p[1], Math.max(3,cell*0.18), 0, Math.PI*2); ctx.fill();
+
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--player') || '#7ad1ff';
+    ctx.fillRect(player.x*cell+6, player.y*cell+6, cell-12, cell-12);
+
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--monster') || '#ff6b6b';
+    ctx.beginPath(); const m=centerXY(monster.x,monster.y); ctx.arc(m[0],m[1], cell*0.34, 0, Math.PI*2); ctx.fill();
+  }
+
+  function canMove(x,y,dir){
+    const c=maze[idx(x,y)];
+    if(dir==='u' && !c.walls.t) return [x, y-1];
+    if(dir==='d' && !c.walls.b) return [x, y+1];
+    if(dir==='l' && !c.walls.l) return [x-1, y];
+    if(dir==='r' && !c.walls.r) return [x+1, y];
+    return null;
+  }
+
+  function bfsNextStep(sx,sy, tx,ty){
+    if(sx===tx && sy===ty) return [sx,sy];
+    const q=[[sx,sy]]; const seen=new Set([sx+','+sy]); const prev={};
+    while(q.length){
+      const [x,y]=q.shift();
+      const c=maze[idx(x,y)];
+      const neigh=[];
+      if(!c.walls.t) neigh.push([x,y-1]);
+      if(!c.walls.r) neigh.push([x+1,y]);
+      if(!c.walls.b) neigh.push([x,y+1]);
+      if(!c.walls.l) neigh.push([x-1,y]);
+      for(const [nx,ny] of neigh){
+        const key=nx+','+ny; if(nx<0||ny<0||nx>=DIM||ny>=DIM||seen.has(key)) continue;
+        seen.add(key); prev[key]=[x,y]; q.push([nx,ny]);
+        if(nx===tx && ny===ty){ q.length=0; break; }
+      }
+    }
+    let key=tx+','+ty; if(!(key in prev)) return [sx,sy];
+    const path=[[tx,ty]];
+    while(key in prev){ const [px,py]=prev[key]; path.push([px,py]); key=px+','+py; if(px===sx && py===sy) break; }
+    const next = path[path.length-2];
+    return next || [sx,sy];
+  }
+
+  const keys = new Set();
+  addEventListener('keydown', e=>{ const k=e.key.toLowerCase(); keys.add(k); if(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(k)) e.preventDefault(); });
+  addEventListener('keyup', e=>{ keys.delete(e.key.toLowerCase()); });
+
+  let last=0, running=true, timeAlive=0;
+  function tick(ts){
+    if(!last) last=ts; const dt=(ts-last)/1000; last=ts; if(!running){ requestAnimationFrame(tick); return; }
+
+    timeAlive += dt; timeLbl.textContent = timeAlive.toFixed(2)+'s';
+    playerCD -= dt; monsterCD -= dt;
+
+    if(playerCD<=0){
+      let dir=null;
+      if(keys.has('w')||keys.has('arrowup')) dir='u';
+      else if(keys.has('s')||keys.has('arrowdown')) dir='d';
+      else if(keys.has('a')||keys.has('arrowleft')) dir='l';
+      else if(keys.has('d')||keys.has('arrowright')) dir='r';
+      if(dir){ const n=canMove(player.x,player.y,dir); if(n){ player.x=n[0]; player.y=n[1]; } playerCD=PLAYER_STEP_CD; }
+    }
+
+    if(monsterCD<=0){
+      const [nx,ny] = bfsNextStep(monster.x, monster.y, player.x, player.y);
+      if(nx!==monster.x || ny!==monster.y){ monster.x=nx; monster.y=ny; }
+      monsterCD = MONSTER_STEP_CD;
+    }
+
+    fit(); drawMaze(); drawActors();
+
+    if(player.x===monster.x && player.y===monster.y){
+      running=false; status.textContent = 'AI PIERDUT! Timp: '+timeAlive.toFixed(2)+'s'; status.style.display='block';
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  function newMaze(){ genMaze(); fit(); timeAlive=0; running=true; status.style.display='none'; placeActors(); sizeLbl.textContent = DIM+'×'+DIM; }
+  function restart(){ timeAlive=0; running=true; status.style.display='none'; placeActors(); }
+
+  btnNew.onclick = ()=>{ newMaze(); };
+  btnRestart.onclick = ()=>{ restart(); };
+  addEventListener('resize', fit);
+
+  newMaze(); requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

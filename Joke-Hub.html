@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>GABI JOKE HUB - 150 TOTAL</title>
+    <style>
+        :root { --p-green: #d4e157; --funny: #66bb6a; --annoy: #ef5350; --logic: #42a5f5; }
+        body { margin: 0; background: #fffdf5; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        #main-card { width: 650px; background: #fff; padding: 40px; border-radius: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.1); text-align: center; border: 2px solid var(--p-green); }
+        h1 { font-size: 30px; color: #333; margin-bottom: 30px; border-bottom: 2px solid var(--p-green); padding-bottom: 10px; }
+        .btn-container { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 30px; }
+        .cat-btn { padding: 20px 10px; border: none; border-radius: 15px; cursor: pointer; font-weight: bold; color: white; transition: 0.3s; font-size: 13px; }
+        .cat-btn:hover { transform: translateY(-5px); filter: brightness(1.1); }
+        #display { min-height: 140px; background: #fdfdfd; border-radius: 20px; display: flex; align-items: center; justify-content: center; padding: 25px; font-size: 19px; color: #444; line-height: 1.5; border: 1px solid #eee; margin-bottom: 20px; font-style: italic; }
+        .stats { font-size: 12px; color: #aaa; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="main-card">
+    <h1>GABI JOKE HUB</h1>
+    
+    <div class="btn-container">
+        <button class="cat-btn" style="background: var(--funny)" onclick="getJoke('amuzante')">😂 50 AMUZANTE</button>
+        <button class="cat-btn" style="background: var(--annoy)" onclick="getJoke('suparatoare')">🔥 50 SUPĂRĂTOARE</button>
+        <button class="cat-btn" style="background: var(--logic)" onclick="getJoke('logica')">🧠 50 TECH/LOGICĂ</button>
+    </div>
+
+    <div id="display">Apasă un buton pentru a genera una din cele 150 de glume...</div>
+    
+    <div class="stats">TOTAL BAZĂ DE DATE: 150 GLUME | UTILIZATOR: GABI_SAVANT</div>
+</div>
+
+<script>
+    const jokes = {
+        amuzante: [
+            "De ce stătea Bulă cu ochelari de soare la ora de mate? Ca să nu-i vadă profa sinusurile!",
+            "Care este culmea răbdării? Să numeri boabele dintr-un sac de orez cu mănuși de box.",
+            "De ce nu mănâncă rechinii clovni? Pentru că au un gust cam ciudat.",
+            "Ce face o lămâie când are febră? Limonadă.",
+            "De ce merg albinele la școală? Să învețe polenizarea.",
+            "Care este culmea lenei? Să te scoli la 6 dimineața ca să ai mai mult timp de stat degeaba.",
+            "Cum se numește un câine care face magie? Labra-cadabra.",
+            "De ce nu se joacă niciodată cărți în junglă? Pentru că sunt prea mulți ghepazi!",
+            "Ce face un pinguin în deșert? Se topește de dorul gheții.",
+            "De ce stătea oglinda la soare? Ca să se vadă mai bine.",
+            "Ce spune un deget mare celorlalte degete? Stați liniștiți, eu sunt șeful!",
+            "De ce au elefanții tălpile plate? Ca să poată stinge incendiile.",
+            "Cum se numește o albină care nu se poate hotărî? O al-poate-bină.",
+            "De ce a mers pantoful la doctor? Pentru că avea limba umflată.",
+            "Ce face o pasăre pe calculator? Tweet.",
+            "Care este cea mai inteligentă legumă? Dovleacul, că are capul mare.",
+            "De ce a fost arestat calculatorul? Pentru că a 'bătut' placa de bază.",
+            "Ce spune un perete celuilalt perete? Ne întâlnim la colț!",
+            "Care este culmea curajului? Să mănânci supă cu furculița în timp ce strănuți.",
+            "Cum se numește un hamster care locuiește la bloc? Un bloc-ster.",
+            "De ce merg melcii încet? Ca să nu-și deranjeze casa.",
+            "Ce zice o imprimantă unei coli de hârtie? Te umplu eu imediat!",
+            "De ce e soarele galben? Pentru că nu a avut timp să se facă albastru.",
+            "Cum se salută doi astronauți? Ce mai face atmosfera?",
+            "De ce merg rațele la școală? Să învețe măcăneala.",
+            "Ce face un bec când se plictisește? Se arde.",
+            "De ce nu au peștii picioare? Să nu le intre nisip între degete.",
+            "Care e cel mai rapid mod de a curăța camera? Să stingi lumina.",
+            "Ce spune un ochi celuilalt ochi? Ceva între noi miroase (nasul).",
+            "De ce se uită Bulă în oglindă cu ochii închiși? Să vadă cum doarme.",
+            "Care e culmea fotbalului? Să dai gol și să-l cauți în poartă cu lanterna.",
+            "De ce nu plâng roboții? Nu au lacrimi de instalare.",
+            "Ce face un balaur când se trezește? Își aprinde o țigară de la nas.",
+            "De ce fuge un schelet de câine? Să nu-i fure oasele.",
+            "Care e culmea lăcomiei? Să mănânci ciocolată sub pat ca să nu te vadă oglinda.",
+            "De ce au păsările aripi? Să nu meargă pe jos la mare.",
+            "Ce face un cal la calculator? Bagă viteză pe tastatură.",
+            "De ce e marea sărată? Că peștii nu au unde să pună sarea.",
+            "Cum se numește o pisică cu aripi? O pi-zburătoare.",
+            "De ce nu stau fantomele în ploaie? Să nu devină spirite ude.",
+            "Ce spune un pește mic unui pește mare? 'Mamă!'.",
+            "De ce poartă scafandrii costume negre? Ca să nu-i vadă rechinii la nuntă.",
+            "Care e culmea somnului? Să visezi că dormi.",
+            "De ce au veverițele coada stufoasă? Să se măture după ce mănâncă nuci.",
+            "Ce spune o pâine unei alte pâini? 'Ești cam rumenă azi!'.",
+            "De ce au mașinile claxon? Să nu adoarmă șoferii la coadă.",
+            "Cum se numește un urs fără urechi? 'U'.",
+            "De ce e iarba verde? Ca să se ascundă lăcustele.",
+            "Care e culmea auzului? Să auzi cum crește prețul la benzină.",
+            "De ce are girafa gâtul lung? Că are picioarele departe de cap."
+        ],
+        suparatoare: [
+            "Creierul tău e ca un browser cu 25 de tab-uri: 19 sunt blocate.",
+            "Dacă ignoranța ar fi lumină, tu ai fi un soare.",
+            "Ești motivul pentru care pe șampoane scrie 'A nu se înghiți'.",
+            "Ai un stil de a vorbi care mă face să apreciez tăcerea.",
+            "Ești ca o zi de luni: nimeni nu te vrea, dar tot apari.",
+            "Dacă aș avea un leu pentru fiecare idee inteligentă a ta, aș fi dator.",
+            "Arăți de parcă ai fi fost desenat cu mâna stângă, pe întuneric.",
+            "Te-aș jigni, dar natura a făcut deja o treabă mai bună.",
+            "Ești ca un nor: când pleci, începe o zi frumoasă.",
+            "Dacă prostia ar durea, ai urla non-stop.",
+            "Ești motivul pentru care extratereștrii nu ne vizitează.",
+            "Creierul tău e nou-nouț, nici nu l-ai folosit vreodată.",
+            "Ești dovada vie că și pietrele pot avea opinii.",
+            "Ai un simț al umorului atât de sec, încât aș avea nevoie de apă.",
+            "Ești ca o reclamă pe YouTube: toți vor să treacă peste tine.",
+            "Dacă te-aș pune la treabă, ar trebui să te plătesc să te oprești.",
+            "Ești ca un telefon fără semnal: ești acolo, dar degeaba.",
+            "Dacă te-ai uita în oglindă, oglinda ar cere concediu.",
+            "Ești la fel de util ca o furculiță pentru supă.",
+            "Când vorbești, parcă aud o stație de autobuz goală.",
+            "Ești campion la 'cum să nu faci nimic'.",
+            "Ai o inteligență sclipitoare, păcat că e mereu stinsă.",
+            "Dacă aș vrea să aud o glumă, te-aș ruga să spui un adevăr.",
+            "Ești ca o baterie descărcată: zero energie, zero ajutor.",
+            "Ești motivul pentru care oamenii preferă câinii.",
+            "Dacă ai fi o mâncare, ai fi ciorbă de pietre.",
+            "Când intri în cameră, entuziasmul iese pe fereastră.",
+            "Ești ca un WiFi cu parolă greșită: stresant.",
+            "Dacă te-aș trimite după moarte, aș fi nemuritor la cât de încet ești.",
+            "Ai o minte atât de deschisă, încât ți-a căzut creierul.",
+            "Ești ca o telecomandă fără baterii.",
+            "Dacă lenea ar fi un sport, ai fi la olimpiadă.",
+            "Ești la fel de interesant ca un perete proaspăt vopsit.",
+            "Dacă ai fi un film, ai fi ăla la care adoarme toată lumea.",
+            "Ești ca un puzzle căruia îi lipsesc piesele de bază.",
+            "Când încerci să gândești, se simte miros de ars.",
+            "Ești ca o umbrelă plină de găuri.",
+            "Dacă prostia s-ar vinde, ai fi milionar.",
+            "Ai un talent rar de a strica orice conversație.",
+            "Ești ca un ceas care merge înapoi.",
+            "Dacă te-aș asculta mult, mi-ar scădea coeficientul de inteligență.",
+            "Ești ca o ciorbă reîncălzită de zece ori.",
+            "Când zâmbești, sperii și muștele.",
+            "Ești la fel de profund ca o farfurie întinsă.",
+            "Dacă aș face un concurs de eșecuri, ai ieși pe locul doi (că ești prea eșec să fii primul).",
+            "Ești ca o minge spartă: nu mai sari nicăieri.",
+            "Ai un farmec aparte... dar foarte bine ascuns.",
+            "Ești ca o zi ploioasă la mare.",
+            "Dacă aș vrea să pierd timpul, te-aș întreba ce mai faci.",
+            "Ești singurul om care reușește să enerveze și o oglindă."
+        ],
+        logica: [
+            "Un programator pune pe noptieră un pahar plin și unul gol.",
+            "De ce au calculatoarele ventilatoare? Să nu transpire la codul lui Gabi!",
+            "Câți programatori schimbă un bec? Niciunul, e problemă de hardware.",
+            "De ce se ceartă HTML cu CSS? HTML are structură, CSS are stil.",
+            "Savantul a inventat cuțitul care taie curentul. Acum stă pe întuneric.",
+            "Ce spune un router supărat? 'Nu mai am semnal pentru tine!'",
+            "Cum verifică savantul apa? Bagă termometrul și strigă 'Eureka!'",
+            "De ce a fost arestat calculatorul? A 'bătut' placa de bază.",
+            "Ce face un hacker la mare? Phishing.",
+            "Culmea matematicii? Să fii singur într-o cameră cu număr par de oameni.",
+            "De ce are nevoie programatorul de ochelari? Să vadă bug-urile mai clar.",
+            "Un savant a combinat un papagal cu un calculator. Acum îi cere parola.",
+            "De ce nu merg roboții la cinema? Că știu deja sfârșitul de pe internet.",
+            "Ce zice o placă video unei plăci de bază? 'Mă simt cam fierbinte!'.",
+            "De ce stau programatorii în întuneric? Lumina are prea multe bug-uri.",
+            "Cum se numește un AI care a picat examenul? Artificial Unintelligent.",
+            "De ce a fugit 6 de 7? Pentru că 7 ate 9.",
+            "Care e leguma preferată a hackerilor? Praz-ul (parole).",
+            "Ce face un programator la nuntă? Debugging la tort.",
+            "De ce e soarele galben? Nu a avut timp să se facă albastru.",
+            "Cum se salută doi biți? 'Ne vedem la octet!'.",
+            "De ce a fost exclus zero? Că nu are nicio valoare.",
+            "Culmea logicii? Să cauți un ac în carul cu fân folosind un magnet legat de alt ac.",
+            "De ce au tabletele ecrane mari? Să încapă toate erorile.",
+            "Care e unitatea de măsură pentru lene? Kilowatt-stai.",
+            "De ce nu au savanții succes în dragoste? Că analizează prea mult reacțiile.",
+            "Ce face un programator când îi e sete? Tastează 'Drink.exe'.",
+            "Cum se numește un cod care merge din prima? O minune.",
+            "De ce e tastatura supărată? Că toți o bat la cap.",
+            "Ce spune un hard disk unui USB? 'Ești cam mic, dar ai tupeu!'.",
+            "De ce e mouse-ul trist? Că e mereu sub papuc.",
+            "Care e culmea fizicii? Să cazi în sus.",
+            "De ce nu au roboții sentimente? Că le lipsește update-ul de suflet.",
+            "Ce spune un atom altui atom? 'Mi-am pierdut un electron!' 'Ești sigur?' 'Sunt pozitiv!'.",
+            "De ce au programatorii părul lung? Să aibă unde să se scarpine când au bug-uri.",
+            "Care e culmea programării? Să scrii un cod care se scrie singur.",
+            "De ce se tem cifrele de minus? Că le scade moralul.",
+            "Ce face un savant la munte? Măsoară presiunea aerului cu degetul.",
+            "De ce e AI-ul deștept? Că a citit tot internetul în timp ce tu dormeai.",
+            "Cum se face un programator bogat? Vinde bug-urile ca 'features'.",
+            "De ce e link-ul albastru? Că a stat prea mult în frig pe server.",
+            "Care e culmea chimiei? Să faci aur din noroi și să-l vinzi ca bio.",
+            "De ce nu au calculatoarele picioare? Să nu fugă cu datele.",
+            "Ce spune un bit de 0 unui bit de 1? 'Ești cam sus azi!'.",
+            "De ce e Google cel mai bun prieten? Că nu te judecă când pui întrebări proaste.",
+            "Cum se numește o eroare de logică? Un pas greșit în spațiu.",
+            "De ce se ascunde WiFi-ul după perete? Ca să-ți testeze răbdarea.",
+            "Care e culmea vitezei? Să închizi sertarul și să bagi cheia în el înainte să se închidă.",
+            "De ce au savanții halate albe? Să nu se confunde cu cafeaua.",
+            "Ce face un cod bun? Te lasă să dormi noaptea."
+        ]
+    };
+
+    function getJoke(category) {
+        const display = document.getElementById('display');
+        const list = jokes[category];
+        const randomIndex = Math.floor(Math.random() * list.length);
+        display.style.opacity = 0;
+        setTimeout(() => {
+            display.innerText = list[randomIndex];
+            display.style.opacity = 1;
+            if(category === 'amuzante') display.style.color = "#2e7d32";
+            if(category === 'suparatoare') display.style.color = "#c62828";
+            if(category === 'logica') display.style.color = "#1565c0";
+        }, 200);
+    }
+</script>
+</body>
+</html>

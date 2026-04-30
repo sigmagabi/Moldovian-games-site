@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>Savant Gabi: Hacker Mode</title>
+    <style>
+        body { margin: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: 'Consolas', monospace; color: #00ff00; overflow: hidden; }
+        
+        /* CARDUL VIZUAL */
+        #card-v {
+            width: 380px; height: 230px; border: 2px solid #00ff00; border-radius: 15px;
+            background: rgba(0, 255, 0, 0.02); position: relative; padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.1); margin-bottom: 30px;
+        }
+        #chip-v { width: 60px; height: 45px; background: #ffd700; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 0 15px #ffd700; }
+        #owner { font-size: 18px; margin-top: 50px; border-left: 3px solid #00ff00; padding-left: 10px; }
+        #security { position: absolute; bottom: 15px; right: 20px; font-size: 10px; opacity: 0.7; }
+
+        /* PANOU INDICII */
+        #hints-panel { width: 400px; background: rgba(0, 20, 0, 0.9); border: 1px solid #00ff00; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
+        .hint-row { margin: 10px 0; font-size: 14px; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(0, 255, 0, 0.2); padding-bottom: 5px; }
+        .val { color: #fff; background: #004400; padding: 2px 8px; border-radius: 3px; font-weight: bold; }
+
+        /* ZONA DE INPUT */
+        #screen { font-size: 48px; letter-spacing: 15px; background: #001100; border: 3px solid #00ff00; padding: 15px 30px; border-radius: 10px; margin-bottom: 20px; box-shadow: inset 0 0 20px #00ff00; }
+        #msg { height: 30px; font-size: 18px; font-weight: bold; text-transform: uppercase; }
+        .blink { animation: b 1s infinite; }
+        @keyframes b { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+    <h1 style="font-size: 20px; margin-bottom: 20px;">SISTEM DE DECRIPTARE AVANSAT</h1>
+
+    <div id="card-v">
+        <div id="chip-v"></div>
+        <div id="owner">PROPRIETAR: SAVANT GABI</div>
+        <div id="security">ENCRYPTION LEVEL: HIGH</div>
+    </div>
+
+    <div id="hints-panel">
+        <div class="hint-row"><span>1. SUMA CIFRELOR ESTE:</span> <span id="s1" class="val">?</span></div>
+        <div class="hint-row"><span>2. CEA MAI MICĂ:</span> <span id="s2" class="val">?</span></div>
+        <div class="hint-row"><span>2. CEA MAI MARE:</span> <span id="s3" class="val">?</span></div>
+        <div class="hint-row"><span>3. SECVENȚĂ (P/I):</span> <span id="s4" class="val" style="letter-spacing: 2px;">?</span></div>
+    </div>
+
+    <div id="screen">____</div>
+    <div id="msg" class="blink">AȘTEPTARE DATE...</div>
+
+<script>
+    let code = "";
+    let input = "";
+    let active = true;
+
+    function start() {
+        let d = [];
+        for(let i=0; i<4; i++) d.push(Math.floor(Math.random() * 10));
+        code = d.join("");
+        
+        // Calcule pentru indicii conform cerințelor tale
+        document.getElementById('s1').innerText = d.reduce((a, b) => a + b, 0);
+        document.getElementById('s2').innerText = Math.min(...d);
+        document.getElementById('s3').innerText = Math.max(...d);
+        
+        // Secvență detaliată (Par/Impar)
+        document.getElementById('s4').innerText = d.map(n => n % 2 === 0 ? "P" : "I").join(" - ");
+        
+        input = "";
+        active = true;
+        update();
+        msg("INTRODUCEȚI PIN DIN TASTE", "#00ff00");
+    }
+
+    function update() {
+        let text = input.split("");
+        while(text.length < 4) text.push("_");
+        document.getElementById('screen').innerText = text.join("");
+    }
+
+    function msg(t, c) {
+        let m = document.getElementById('msg');
+        m.innerText = t;
+        m.style.color = c;
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if(!active) return;
+
+        if(e.key >= '0' && e.key <= '9' && input.length < 4) {
+            input += e.key;
+            update();
+        }
+
+        if(e.key === 'Backspace') {
+            input = input.slice(0, -1);
+            update();
+        }
+
+        if(e.key === 'Enter' && input.length === 4) {
+            if(input === code) {
+                active = false;
+                msg("ACCES GARANTAT!", "#00ff00");
+                setTimeout(() => { if(confirm("Vrei alt card?")) start(); }, 500);
+            } else {
+                msg("COD ERONAT!", "#ff0000");
+                input = "";
+                setTimeout(() => { msg("REÎNCERCAȚI...", "#00ff00"); update(); }, 1000);
+            }
+        }
+    });
+
+    start();
+</script>
+</body>
+</html>

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stickman – Linia de Forță</title>
+<style>
+  :root{
+    --bg:#0c121d; --sky1:#1f2a3a; --sky2:#0f1724; --ink:#eaf2ff;
+    --good:#2ecc71; --bad:#ff6b6b; --metal:#9aa6b2; --target:#ffd166;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{display:flex;align-items:center;justify-content:center;background:radial-gradient(80% 100% at 50% 0%,var(--sky1),var(--sky2));color:var(--ink);font-family:system-ui,Segoe UI,Roboto}
+  .wrap{width:min(94vw,720px)}
+  header{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}
+  h1{margin:0;font-size:clamp(16px,3vw,20px);opacity:.9}
+  .pill{background:#0f1d3a;border:1px solid #24345a;border-radius:999px;padding:6px 10px;font-weight:700}
+  .panel{position:relative;background:#0f1b36;border:1px solid #1e2c50;border-radius:12px;padding:8px;box-shadow:0 10px 28px rgba(0,0,0,.35)}
+  canvas{display:block;width:100%;height:auto;background:linear-gradient(180deg,#1b2840 0%,#102033 60%,#0c182a 100%);border-radius:10px}
+  .controls{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+  button{appearance:none;border:none;background:linear-gradient(180deg,#1b2749,#10182f);color:var(--ink);border:1px solid #2a3a62;padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:800}
+  button:active{transform:translateY(1px)}
+  .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center}
+  .card{background:#0b1024cc;border:1px solid #3a4bb3;padding:16px;border-radius:12px;max-width:min(520px,92%);text-align:center}
+  .big{font-size:36px;font-weight:900;letter-spacing:1px;color:#ffb3ba}
+  .tip{opacity:.9;font-size:14px}
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Stickman – Linia de Forță</h1>
+    <div class="toolbar">
+      <div class="pill">⭐ Scor: <b id="score">0</b></div>
+      <div class="pill">🏆 Record: <b id="best">0</b></div>
+      <div class="pill">⚡ Viteză: <b id="spd">1.0x</b></div>
+      <button id="btnDownload" title="Descarcă acest joc ca fișier HTML">⬇️ Download</button>
+    </div>
+  </header>
+
+  <div class="panel">
+    <canvas id="game" width="700" height="420" aria-label="Stickman timing"></canvas>
+    <div class="overlay" id="ov">
+      <div class="card">
+        <div class="big" id="ovTitle">AI PIERDUT</div>
+        <p class="tip" id="ovMsg">Grinda a căzut peste tine! Încearcă să nimerești zona-țintă când săgeata trece peste ea.</p>
+        <button id="again">Reîncearcă</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="btnSlow">Viteză −</button>
+    <button id="btnFast">Viteză +</button>
+    <span class="tip" style="opacity:.8">Controle: <b>Click / Space</b> când săgeata trece peste țintă</span>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const cvs = $('#game'), ctx = cvs.getContext('2d');
+  const scoreEl = $('#score'), bestEl = $('#best'), spdEl = $('#spd');
+  const ov = $('#ov'), again = $('#again');
+  const btnSlow = $('#btnSlow'), btnFast = $('#btnFast');
+  const btnDownload = $('#btnDownload');
+
+  let running = true, dropping = false;
+  let score = 0, best = +localStorage.getItem('stick_timing_best')||0; bestEl.textContent = best;
+  let speed = 1.0;
+  spdEl.textContent = speed.toFixed(1)+'x';
+
+  const W = cvs.width, H = cvs.height;
+  const groundY = H - 40;
+  const beamYRest = 80;
+  const beamDropY = groundY - 70;
+  const beam = { x: 60, y: beamYRest, w: W-120, h: 16 };
+  const spikes = { h: 18, gap: 18 };
+  const gauge = { x: 100, y: H - 95, w: W-200, h: 8 };
+  let arrow = { t: 0, dir: 1 };
+  let target = { start: 0.35, end: 0.47 };
+  const tolerance = 0.0;
+  let vy = 0, g = 1600;
+  let t0 = 0;
+
+  let audioCtx; 
+  function pling(freq=880, ms=120, vol=0.05){
+    try{
+      audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+      const o = audioCtx.createOscillator(), a = audioCtx.createGain();
+      o.type='triangle'; o.frequency.value=freq; o.connect(a); a.connect(audioCtx.destination);
+      a.gain.value=vol; o.start(); setTimeout(()=>o.stop(), ms);
+    }catch(e){}
+  }
+
+  function resetRound(){
+    const minW = 0.08, maxW = 0.16;
+    const w = minW + Math.random()*(maxW-minW);
+    let s = Math.random()*(1-w);
+    target.start = s;
+    target.end = s + w;
+    arrow.t = Math.random();
+    arrow.dir = Math.random()<0.5? -1 : 1;
+  }
+
+  function stickman(x, yTop){
+    const h = 68, w = 24, y = yTop + h;
+    ctx.save();
+    ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#eaf2ff'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.arc(x, y-h+10, 10, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y-h+20); ctx.lineTo(x, y-18); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y-h+26); ctx.lineTo(x-12, y-h+38);
+    ctx.moveTo(x, y-h+26); ctx.lineTo(x+12, y-h+38); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y-18); ctx.lineTo(x-10, y);
+    ctx.moveTo(x, y-18); ctx.lineTo(x+10, y); ctx.stroke();
+    ctx.globalAlpha=0.12; ctx.fillStyle='#000'; ctx.beginPath();
+    ctx.ellipse(x, y-2, 18, 6, 0, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawBackground(){
+    ctx.save();
+    for(let i=0;i<40;i++){
+      const x = (i*17 + (performance.now()*0.03)%W) % W;
+      const y = 40 + (i*29)%160;
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(x, y, 2, 2);
+    }
+    ctx.restore();
+  }
+
+  function drawBeam(y){
+    ctx.save();
+    ctx.fillStyle = '#9aa6b2';
+    ctx.fillRect(beam.x, y, beam.w, beam.h);
+    ctx.fillStyle = '#7b8692';
+    for(let bx=beam.x+12; bx<beam.x+beam.w-8; bx+=46){
+      ctx.beginPath(); ctx.arc(bx, y+beam.h/2, 3, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle = '#cfd6df';
+    for(let sx=beam.x+8; sx<beam.x+beam.w-8; sx+=spikes.gap){
+      ctx.beginPath();
+      ctx.moveTo(sx, y+beam.h);
+      ctx.lineTo(sx+spikes.gap/2, y+beam.h+spikes.h);
+      ctx.lineTo(sx+spikes.gap, y+beam.h);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawGauge(){
+    ctx.save();
+    ctx.fillStyle = '#091425';
+    ctx.fillRect(gauge.x, gauge.y, gauge.w, gauge.h);
+    const tx = gauge.x + target.start*gauge.w;
+    const tw = (target.end-target.start)*gauge.w;
+    ctx.fillStyle = '#ffd166';
+    ctx.fillRect(tx, gauge.y-6, tw, gauge.h+12);
+    ctx.fillStyle = '#0f1d3a';
+    ctx.fillRect(tx+2, gauge.y-4, tw-4, gauge.h+8);
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(tx+1, gauge.y-5, Math.max(0,tw-2), gauge.h+10);
+    const ax = gauge.x + arrow.t*gauge.w;
+    ctx.fillStyle = '#eaf2ff';
+    ctx.beginPath();
+    ctx.moveTo(ax, gauge.y - 16);
+    ctx.lineTo(ax-6, gauge.y - 4);
+    ctx.lineTo(ax+6, gauge.y - 4);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHUD(){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath(); ctx.moveTo(W/2, beam.y+beam.h+spikes.h); ctx.lineTo(W/2, groundY-24); ctx.stroke();
+    ctx.restore();
+  }
+
+  function hit(){
+    if(!running || dropping) return;
+    if(arrow.t >= target.start - tolerance && arrow.t <= target.end + tolerance){
+      pling(900,90,0.05);
+      score++; scoreEl.textContent = score;
+      resetRound();
+    } else {
+      dropping = true;
+      vy = 0; t0 = 0;
+    }
+  }
+
+  function restart(){
+    running = true; dropping = false;
+    score = 0; scoreEl.textContent = '0';
+    beam.y = beamYRest;
+    resetRound();
+    ov.style.display = 'none';
+  }
+
+  cvs.addEventListener('mousedown', hit);
+  window.addEventListener('keydown', e=>{
+    const k = e.key.toLowerCase();
+    if(k===' ' || k==='enter') { e.preventDefault(); hit(); }
+  });
+  again.onclick = restart;
+  btnSlow.onclick = ()=>{ speed = Math.max(0.5, +(speed-0.1).toFixed(1)); spdEl.textContent = speed.toFixed(1)+'x'; };
+  btnFast.onclick = ()=>{ speed = Math.min(3.0, +(speed+0.1).toFixed(1)); spdEl.textContent = speed.toFixed(1)+'x'; };
+
+  function tick(ts){
+    ctx.clearRect(0,0,W,H);
+    drawBackground();
+    ctx.fillStyle = '#101b2c';
+    ctx.fillRect(0, groundY, W, H-groundY);
+    const t = performance.now()/1000;
+    const s = Math.sin(t * (1.3*speed));
+    arrow.t = (s*0.5 + 0.5);
+    if(dropping){
+      if(!t0) t0 = ts;
+      const dt = (ts - t0)/1000; t0 = ts;
+      vy += g*dt;
+      beam.y += vy*dt;
+      if(beam.y >= beamDropY){
+        beam.y = beamDropY;
+        running = false; dropping = false;
+        if(score>best){ best=score; localStorage.setItem('stick_timing_best', String(best)); bestEl.textContent=best; }
+        ov.style.display='flex';
+      }
+    }
+    drawBeam(beam.y);
+    stickman(W/2, groundY-68);
+    drawHUD();
+    drawGauge();
+    requestAnimationFrame(tick);
+  }
+
+  // ===== Download self as HTML =====
+  btnDownload.addEventListener('click', () => {
+    const blob = new Blob([document.documentElement.outerHTML], {type: 'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'stickman_liniedeforta.html';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  });
+
+  resetRound();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

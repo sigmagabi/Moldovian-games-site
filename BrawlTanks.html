@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ro"><head></head><body contenteditable="false">
+The content of the body element is displayed in your browser.
+
+
+
+
+
+
+    <meta charset="UTF-8">
+    <title>Brawl Tanks - Ultimate Edition</title>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: white; font-family: 'Arial', sans-serif; overflow: hidden; touch-action: none; }
+        canvas { display: block; background: #4a752c; cursor: crosshair; }
+        
+        /* UI Styles */
+        #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
+        .stat { font-size: 24px; font-weight: bold; text-shadow: 2px 2px #000; color: #fbc531; }
+        #hp-container { margin-top: 5px; position: relative; width: 200px; }
+        #hp-bar { width: 200px; height: 18px; background: #400; border: 2px solid #fff; border-radius: 9px; overflow: hidden; }
+        #hp-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #4cd137, #44bd32); transition: 0.3s; }
+        #hp-text { position: absolute; top: -2px; left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: bold; color: white; text-shadow: 1px 1px #000; }
+        
+        /* Buttons */
+        #dl-btn { 
+            position: absolute; top: 20px; right: 20px; z-index: 100;
+            padding: 12px 20px; background: #27ae60; color: white; 
+            border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+            box-shadow: 0 4px #1e8449; transition: 0.1s;
+        }
+        #dl-btn:active { box-shadow: 0 0px #1e8449; transform: translateY(4px); }
+
+        /* Screens */
+        #game-over { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            background: rgba(0,0,0,0.9); padding: 50px; text-align: center; 
+            display: none; border-radius: 20px; border: 4px solid #fbc531; z-index: 1000; 
+        }
+        .restart-btn { padding: 12px 25px; background: #fbc531; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 18px; margin-top: 15px; }
+    </style>
+
+
+
+    <button id="dl-btn" onclick="downloadGame()">📥 DESCARCĂ JOCUL</button>
+
+    <div id="ui">
+        <div class="stat">SCOR: <span id="kills">6</span></div>
+        <div id="hp-container">
+            <div id="hp-bar"><div id="hp-fill" style="width: 93%;"></div></div>
+            <div id="hp-text"><span id="hp-val">93</span> / 100</div>
+        </div>
+        <div style="font-size: 11px; color: #ccc; margin-top: 4px;">Regenerare activă (+1 HP / 5s)</div>
+    </div>
+
+    <canvas id="arena" width="820" height="892"></canvas>
+
+    <div id="game-over">
+        <h1 style="color:#e84118; font-size: 40px; margin: 0;">TANC DISTRUS!</h1>
+        <p style="font-size: 20px;">Scor final: <span id="finalKills">0</span> inamici</p>
+        <button class="restart-btn" onclick="location.reload()">JOACĂ DIN NOU</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('arena');
+        const ctx = canvas.getContext('2d');
+        
+        const ARENA_W = 2400;
+        const ARENA_H = 1800;
+        const TILE_SIZE = 120;
+        
+        let viewX = 0, viewY = 0;
+        let score = 0;
+        let gameActive = true;
+        let mouseX = 0, mouseY = 0;
+
+        // Regen logic
+        let lastRegenTime = Date.now();
+        const regenInterval = 5000;
+
+        const obstacles = [];
+        const bullets = [];
+        const enemies = [];
+
+        const player = {
+            x: ARENA_W / 2, y: ARENA_H / 2,
+            speed: 5.5, hp: 100, maxHp: 100,
+            bodyAngle: 0, turretAngle: 0,
+            keys: {}
+        };
+
+        function initMap() {
+            // Borders
+            for (let x = 0; x < ARENA_W; x += TILE_SIZE) {
+                obstacles.push({x, y: 0, w: TILE_SIZE, h: TILE_SIZE});
+                obstacles.push({x, y: ARENA_H - TILE_SIZE, w: TILE_SIZE, h: TILE_SIZE});
+            }
+            for (let y = 0; y < ARENA_H; y += TILE_SIZE) {
+                obstacles.push({x: 0, y, w: TILE_SIZE, h: TILE_SIZE});
+                obstacles.push({x: ARENA_W - TILE_SIZE, y, w: TILE_SIZE, h: TILE_SIZE});
+            }
+            // Interior walls
+            for (let i = 0; i < 20; i++) {
+                let rx = Math.floor(Math.random() * (ARENA_W/TILE_SIZE - 4) + 2) * TILE_SIZE;
+                let ry = Math.floor(Math.random() * (ARENA_H/TILE_SIZE - 4) + 2) * TILE_SIZE;
+                obstacles.push({x: rx, y: ry, w: TILE_SIZE, h: TILE_SIZE});
+                if(Math.random() > 0.6) obstacles.push({x: rx+TILE_SIZE, y: ry, w: TILE_SIZE, h: TILE_SIZE});
+            }
+        }
+
+        function checkCollision(nx, ny) {
+            const m = 22; // Margin
+            for (let o of obstacles) {
+                if (nx + m > o.x && nx - m < o.x + o.w && ny + m > o.y && ny - m < o.y + o.h) return true;
+            }
+            return false;
+        }
+
+        function spawnEnemy() {
+            if (!gameActive || enemies.length > 7) return;
+            let ex, ey;
+            do {
+                ex = Math.random() * (ARENA_W - 300) + 150;
+                ey = Math.random() * (ARENA_H - 300) + 150;
+            } while (checkCollision(ex, ey) || Math.hypot(ex-player.x, ey-player.y) < 600);
+            enemies.push({ x: ex, y: ey, hp: 50, lastShot: 0, angle: 0, speed: 2.8 });
+        }
+
+        function update() {
+            if (!gameActive) return;
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            // HP Regen
+            let now = Date.now();
+            if (now - lastRegenTime >= regenInterval) {
+                if (player.hp < player.maxHp) {
+                    player.hp = Math.min(player.maxHp, player.hp + 1);
+                    updateHPUI();
+                }
+                lastRegenTime = now;
+            }
+
+            // Player Move
+            let dx = 0, dy = 0;
+            if (player.keys['w']) dy -= player.speed;
+            if (player.keys['s']) dy += player.speed;
+            if (player.keys['a']) dx -= player.speed;
+            if (player.keys['d']) dx += player.speed;
+
+            if (dx !== 0 || dy !== 0) {
+                player.bodyAngle = Math.atan2(dy, dx) + Math.PI/2;
+                if (!checkCollision(player.x + dx, player.y)) player.x += dx;
+                if (!checkCollision(player.x, player.y + dy)) player.y += dy;
+            }
+
+            viewX = player.x - canvas.width / 2;
+            viewY = player.y - canvas.height / 2;
+            player.turretAngle = Math.atan2((mouseY + viewY) - player.y, (mouseX + viewX) - player.x) + Math.PI/2;
+
+            // Bullets
+            bullets.forEach((b, i) => {
+                b.x += b.vx; b.y += b.vy;
+                if (checkCollision(b.x, b.y)) bullets.splice(i, 1);
+                else {
+                    if (b.owner === 'player') {
+                        enemies.forEach((en, ei) => {
+                            if (Math.hypot(b.x - en.x, b.y - en.y) < 30) {
+                                en.hp -= 25; bullets.splice(i, 1);
+                                if (en.hp <= 0) { enemies.splice(ei, 1); score++; document.getElementById('kills').innerText = score; }
+                            }
+                        });
+                    } else if (Math.hypot(b.x - player.x, b.y - player.y) < 25) {
+                        player.hp -= 10; bullets.splice(i, 1);
+                        updateHPUI();
+                        if (player.hp <= 0) { gameActive = false; document.getElementById('game-over').style.display = 'block'; document.getElementById('finalKills').innerText = score; }
+                    }
+                }
+            });
+
+            // Enemy AI (No clip through walls)
+            enemies.forEach(en => {
+                let dist = Math.hypot(player.x - en.x, player.y - en.y);
+                en.angle = Math.atan2(player.y - en.y, player.x - en.x) + Math.PI/2;
+                if (dist > 350) {
+                    let mx = Math.cos(en.angle - Math.PI/2) * en.speed;
+                    let my = Math.sin(en.angle - Math.PI/2) * en.speed;
+                    if (!checkCollision(en.x + mx, en.y)) en.x += mx;
+                    if (!checkCollision(en.x, en.y + my)) en.y += my;
+                } else if (Date.now() - en.lastShot > 1800) {
+                    bullets.push({x: en.x, y: en.y, vx: Math.cos(en.angle - Math.PI/2) * 11, vy: Math.sin(en.angle - Math.PI/2) * 11, owner: 'enemy'});
+                    en.lastShot = Date.now();
+                }
+            });
+        }
+
+        function updateHPUI() {
+            document.getElementById('hp-fill').style.width = player.hp + '%';
+            document.getElementById('hp-val').innerText = player.hp;
+        }
+
+        function drawTank(t, color, turretColor, isPlayer) {
+            ctx.save();
+            ctx.translate(t.x, t.y);
+            ctx.save();
+            ctx.rotate(isPlayer ? t.bodyAngle : t.angle);
+            ctx.fillStyle = "#333"; ctx.fillRect(-22, -20, 44, 40); 
+            ctx.fillStyle = color; ctx.fillRect(-18, -18, 36, 36);
+            ctx.restore();
+            ctx.save();
+            ctx.rotate(isPlayer ? t.turretAngle : t.angle);
+            ctx.fillStyle = turretColor;
+            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
+            ctx.stroke(); ctx.fillRect(-5, -35, 10, 25);
+            ctx.restore();
+            ctx.restore();
+        }
+
+        function draw() {
+            ctx.save();
+            ctx.translate(-viewX, -viewY);
+            ctx.fillStyle = "#4a752c"; ctx.fillRect(0, 0, ARENA_W, ARENA_H);
+
+            obstacles.forEach(o => {
+                ctx.fillStyle = "#a67c52";
+                ctx.beginPath(); ctx.roundRect(o.x+2, o.y+2, o.w-4, o.h-4, 10); ctx.fill();
+                ctx.strokeStyle = "#5d4037"; ctx.lineWidth = 4; ctx.stroke();
+            });
+
+            bullets.forEach(b => { ctx.fillStyle = "#fbc531"; ctx.beginPath(); ctx.arc(b.x, b.y, 6, 0, Math.PI*2); ctx.fill(); });
+            enemies.forEach(en => drawTank(en, "#e84118", "#c23616", false));
+            drawTank(player, "#0097e6", "#00a8ff", true);
+
+            ctx.restore();
+            if (gameActive) requestAnimationFrame(() => { update(); draw(); });
+        }
+
+        // Controls
+        window.onkeydown = (e) => player.keys[e.key.toLowerCase()] = true;
+        window.onkeyup = (e) => player.keys[e.key.toLowerCase()] = false;
+        window.onmousemove = (e) => { mouseX = e.clientX; mouseY = e.clientY; };
+        window.onmousedown = () => {
+            if(!gameActive) return;
+            let ang = player.turretAngle - Math.PI/2;
+            bullets.push({ x: player.x+Math.cos(ang)*35, y: player.y+Math.sin(ang)*35, vx: Math.cos(ang)*16, vy: Math.sin(ang)*16, owner: 'player' });
+        };
+
+        // Download Game Logic
+        function downloadGame() {
+            const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'BrawlTanks_ByGemini.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        initMap();
+        setInterval(spawnEnemy, 2500);
+        draw();
+    </script>
+
+</body></html>

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Noaptea la Post – Masca lui Freddy (stalk→hunt, energie regenera + consum lent)</title>
+<style>
+  :root{ --bg:#060a15; --panel:#0e1527; --ink:#eef2ff; --muted:#9aa6c7; --accent:#64b5ff; --danger:#ff5566; --ok:#2ecc71 }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto}
+  .wrap{max-width:1100px;margin:16px auto;padding:12px}
+  header{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  h1{margin:0;font-size:clamp(18px,2.4vw,22px)}
+  .hud{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .pill{background:#0d1735;border:1px solid #1f2a44;border-radius:999px;padding:6px 10px;display:flex;gap:8px;align-items:center}
+  .bar{width:140px;height:8px;background:#1b2540;border:1px solid #2a3a62;border-radius:999px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:var(--accent);width:50%}
+  .stage{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;margin-top:10px}
+  .panel{background:var(--panel);border:1px solid #1f2a44;border-radius:14px;padding:10px;box-shadow:0 10px 28px rgba(0,0,0,.35)}
+  .screen{position:relative;border-radius:10px;background:#060a14;border:1px solid #1a2645;height:520px;display:grid;place-items:center;overflow:hidden}
+  canvas{width:100%;height:100%}
+  .static{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg, #ffffff10 0 2px, transparent 2px 4px);mix-blend-mode:overlay;opacity:.25}
+  .controls{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+  .controls.disabled{opacity:.45;pointer-events:none;filter:grayscale(0.3)}
+  button{appearance:none;border:none;background:linear-gradient(180deg,#1b2749,#10182f);color:var(--ink);border:1px solid #2a3a62;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:700;letter-spacing:.2px}
+  button:active{transform:translateY(1px)}
+  button.warn{background:linear-gradient(180deg,#4a1d28,#281119);border-color:#6b2b39}
+  .map{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .camBtn{padding:6px 8px;border-radius:8px;border:1px solid #29385f;background:#0f172a;cursor:pointer;text-align:center}
+  .camBtn.active{outline:2px solid var(--accent)}
+  .status{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:13px;color:var(--muted)}
+  .led{width:10px;height:10px;border-radius:50%;background:#3a4b7f;border:1px solid #4c5d91}
+  .led.on{background:var(--ok)} .led.warn{background:var(--danger)}
+  .log{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;font-size:12px;height:120px;overflow:auto;background:#0b1124;border:1px solid #1f2a44;border-radius:8px;padding:6px}
+  .office{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
+  .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:20;background:#000000b3}
+  .card{background:#0b1024cc;border:1px solid #3a4bb3;padding:20px;border-radius:14px;max-width:min(560px,94%);text-align:center}
+  .overlay.red{background:#1b0000e6}
+  .overlay .big{font-size:48px;font-weight:900;letter-spacing:2px;color:#ffbac1}
+  .shake{animation:shake .6s linear 2}
+  @keyframes shake{0%,100%{transform:translate(0)}25%{transform:translate(6px, -3px)}50%{transform:translate(-6px, 2px)}75%{transform:translate(4px, 3px)}}
+  .maskOnHint{color:#ffd166;font-weight:700}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Noaptea la Post – Masca lui Freddy</h1>
+      <div class="hud">
+        <div class="pill"><b>Ora:</b> <span id="clock">12:00 AM</span></div>
+        <div class="pill"><b>Putere:</b>
+          <span id="powerLbl">100%</span>
+          <span class="bar"><i id="powerBar" style="width:100%"></i></span>
+        </div>
+        <div class="pill"><b>Consum/regen:</b> <span id="usage">-1%/30s, +1%/s</span></div>
+        <div class="pill"><b>Noaptea:</b> <b id="night">1</b></div>
+        <div class="pill"><b>Intruși:</b> <b id="enemyInfo">—</b></div>
+        <div class="pill"><b>Masca:</b> <b id="maskStatus">OFF</b></div>
+      </div>
+    </header>
+
+    <div class="stage">
+      <div class="panel">
+        <div class="screen" id="screen">
+          <canvas id="feed" width="640" height="480"></canvas>
+          <div class="static"></div>
+
+          <!-- Lose / Win overlays -->
+          <div class="overlay red" id="ovLose">
+            <div class="card">
+              <div class="big">YOU DIED</div>
+              <p id="killerLine">Te-a prins cineva…</p>
+              <button id="btnRetry">Reîncearcă noaptea</button>
+            </div>
+          </div>
+          <div class="overlay" id="ovWin">
+            <div class="card">
+              <h2>👏 Ai supraviețuit!</h2>
+              <p>Noaptea <b id="nightWin">1</b> terminată.</p>
+              <button id="btnNext">Noaptea următoare</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="controls" class="controls">
+          <button id="toggleTablet">USE: Monitor ON/OFF</button>
+          <button id="lightL">Lumina Stânga</button>
+          <button id="lightR">Lumina Dreapta</button>
+          <button id="doorL">Ușa Stânga</button>
+          <button id="doorR">Ușa Dreapta</button>
+          <button id="maskBtn" class="warn">Masca lui Freddy (M)</button>
+        </div>
+        <div class="office">
+          <div class="pill"><span class="led" id="ledDoorL"></span>&nbsp;Ușă Stânga</div>
+          <div class="pill"><span class="led" id="ledDoorR"></span>&nbsp;Ușă Dreapta</div>
+          <div class="pill"><span class="led" id="ledLightL"></span>&nbsp;Lumina Stânga</div>
+          <div class="pill"><span class="led" id="ledLightR"></span>&nbsp;Lumina Dreapta</div>
+        </div>
+        <p class="note" style="opacity:.85">Controale: <b>Space</b>=USE, <b>↑/↓</b> sau <b>W/S</b>=camere, <b>Q/E</b>=uși, <b>A/D</b>=lumini, <b>M</b>=Masca lui Freddy. <span class="maskOnHint">(Cu masca ON poți doar s-o dai jos!)</span></p>
+      </div>
+
+      <div class="panel">
+        <div class="map" id="map"></div>
+        <div class="status">
+          <div class="pill">Camera: <b id="camName">OFFICE</b></div>
+        </div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ====== UI refs ======
+  const $ = s => document.querySelector(s);
+  const screen = $('#screen'), logEl = $('#log');
+  const feed = $('#feed'), ctx = feed.getContext('2d');
+  const clockEl = $('#clock'), powerLbl = $('#powerLbl'), powerBar = $('#powerBar'), usageEl = $('#usage');
+  const nightEl = $('#night'), enemyInfoEl = $('#enemyInfo'), camName = $('#camName');
+  const ledDoorL = $('#ledDoorL'), ledDoorR = $('#ledDoorR'), ledLightL = $('#ledLightL'), ledLightR = $('#ledLightR');
+  const btnUse = $('#toggleTablet'), btnLightL = $('#lightL'), btnLightR = $('#lightR'), btnDoorL = $('#doorL'), btnDoorR = $('#doorR');
+  const btnMask = $('#maskBtn'), maskStatus = $('#maskStatus'), controlsBox = $('#controls');
+  const ovLose = $('#ovLose'), killerLine = $('#killerLine'), btnRetry = $('#btnRetry');
+  const ovWin = $('#ovWin'), nightWin = $('#nightWin'), btnNext = $('#btnNext');
+  const mapEl = $('#map');
+
+  // ====== Settings (time) ======
+  const NIGHT_SECONDS = 300; // 5 minute
+  const STALK_SECONDS = 60;  // ~1 minut patrulare, apoi hunt (atac)
+
+  // Energie: -1% / 30s și +1% / 1s
+  const DRAIN_PER_SEC = 1/30; // 0.0333%/s
+  const REGEN_PER_SEC = 1;    // 1%/s
+
+  // ====== Game state ======
+  let night = 1;
+  let tabletUp = false, camIndex = 0;
+  let power = 100;
+  let elapsed = 0, lastTs = 0;
+  let won = false, lost = false;
+  let maskOn = false;
+  const state = { doorL:false, doorR:false, lightL:false, lightR:false };
+
+  // ====== Cameras & paths ======
+  const CAMS = [
+    { id:'OFF', name:'OFFICE' },
+    { id:'1A', name:'CAM 1A – Scenă' },
+    { id:'1B', name:'CAM 1B – Hol Central' },
+    { id:'2A', name:'CAM 2A – Hol Stânga' },
+    { id:'2B', name:'CAM 2B – Ușa Stânga' },
+    { id:'3A', name:'CAM 3A – Hol Dreapta' },
+    { id:'3B', name:'CAM 3B – Ușa Dreapta' }
+  ];
+  const PATHS = {
+    '1A':['1B'],
+    '1B':['2A','3A'],
+    '2A':['2B'],
+    '3A':['3B'],
+    '2B':['OFFICE_L'],
+    '3B':['OFFICE_R']
+  };
+
+  // ====== Enemies ======
+  const roles = ['Freddy','Chica','Foxy'];
+  let enemies = [];
+
+  // ====== Audio beep ======
+  let audioCtx, mute=false;
+  function beep(freq=650, ms=70, gain=0.045){
+    if(mute) return;
+    try{
+      audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type='square'; o.frequency.value=freq; o.connect(g); g.connect(audioCtx.destination);
+      g.gain.value=gain; o.start(); setTimeout(()=>o.stop(), ms);
+    }catch(e){}
+  }
+
+  // ====== Map UI ======
+  const camButtons=[];
+  function buildMap(){
+    mapEl.innerHTML=''; camButtons.length=0;
+    for(let i=1;i<CAMS.length;i++){
+      const b=document.createElement('button'); b.className='camBtn'; b.textContent=CAMS[i].name; b.dataset.idx=i;
+      b.onclick=()=>{ if(maskOn) return; camIndex=i; tabletUp=true; updateCamLabel(); render(); highlightCam(); beep(720,50); };
+      mapEl.appendChild(b); camButtons.push(b);
+    }
+    highlightCam();
+  }
+  function highlightCam(){ camButtons.forEach(b=>b.classList.toggle('active', +b.dataset.idx===camIndex)); }
+  function updateCamLabel(){ camName.textContent = (tabletUp?CAMS[camIndex].name:'OFFICE'); }
+
+  // ====== Drawing helpers ======
+  function colorFor(role){ return role==='Freddy' ? '#8a5a2b' : role==='Chica' ? '#ffd54d' : '#d96c5a'; }
+  function drawHead(role, cx, cy, left=true, big=false){
+    ctx.save(); ctx.translate(cx, cy); if(!left) ctx.scale(-1,1);
+    const scale = big? 2.2 : 1; ctx.scale(scale, scale);
+    ctx.fillStyle = colorFor(role); ctx.beginPath(); ctx.arc(0, -18, 24, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#111';
+    if(role==='Freddy'){ ctx.beginPath(); ctx.arc(-16,-34,8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(16,-34,8,0,Math.PI*2); ctx.fill(); ctx.fillRect(-8,-45,16,7); }
+    if(role==='Chica'){ ctx.fillStyle='#f2a900'; ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(14,-2); ctx.lineTo(0,4); ctx.closePath(); ctx.fill(); }
+    if(role==='Foxy'){ ctx.fillStyle='#111'; ctx.beginPath(); ctx.moveTo(-20,-42); ctx.lineTo(-4,-32); ctx.lineTo(-12,-20); ctx.closePath(); ctx.fill();
+                       ctx.beginPath(); ctx.moveTo(20,-42); ctx.lineTo(4,-32); ctx.lineTo(12,-20); ctx.closePath(); ctx.fill();
+                       ctx.fillRect(-6,-22,12,10); }
+    ctx.fillStyle='#fff'; ctx.fillRect(-10,-20,6,6); ctx.fillRect(4,-20,6,6);
+    ctx.fillStyle='#000'; ctx.fillRect(-8,-19,3,3); ctx.fillRect(6,-19,3,3);
+    ctx.restore();
+  }
+  function renderOffice(){
+    ctx.fillStyle = '#0b1124'; ctx.fillRect(0,0,feed.width,feed.height);
+    ctx.fillStyle = '#162044'; ctx.fillRect(0, feed.height-120, feed.width, 120);
+    ctx.fillStyle = state.doorL ? '#2ecc71' : '#3a4d7d'; ctx.fillRect(10, feed.height-220, 30, 180);
+    ctx.fillStyle = state.doorR ? '#2ecc71' : '#3a4d7d'; ctx.fillRect(feed.width-40, feed.height-220, 30, 180);
+    if(state.lightL){ const g=ctx.createRadialGradient(80, feed.height-150, 10, 80, feed.height-150, 180); g.addColorStop(0,'#ffffff55'); g.addColorStop(1,'transparent'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(80, feed.height-150, 180, 0, Math.PI*2); ctx.fill(); }
+    if(state.lightR){ const g=ctx.createRadialGradient(feed.width-80, feed.height-150, 10, feed.width-80, feed.height-150, 180); g.addColorStop(0,'#ffffff55'); g.addColorStop(1,'transparent'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(feed.width-80, feed.height-150, 180, 0, Math.PI*2); ctx.fill(); }
+    enemies.forEach(e=>{
+      if(e.room==='2B' && state.lightL){ drawHead(e.role, 120, feed.height-160, true); }
+      if(e.room==='3B' && state.lightR){ drawHead(e.role, feed.width-120, feed.height-160, false); }
+    });
+    // dacă masca e ON, indicăm vizual
+    if(maskOn){
+      ctx.fillStyle='rgba(60,40,20,0.15)'; ctx.fillRect(0,0,feed.width,feed.height);
+      ctx.fillStyle='#ffd166'; ctx.font='18px ui-monospace,monospace';
+      ctx.fillText('MASCA LUI FREDDY – PROTECȚIE ACTIVĂ', 16, 24);
+    }
+  }
+  function drawRoom(label, pillars=3){
+    ctx.fillStyle='#06102a'; ctx.fillRect(0,0,feed.width,feed.height);
+    ctx.strokeStyle='#22335f'; ctx.lineWidth=2; ctx.strokeRect(40,60,feed.width-80,feed.height-120);
+    ctx.fillStyle = '#0d1a3d';
+    for(let i=0;i<pillars;i++){ const x=70+i*((feed.width-140)/Math.max(1,pillars-1)); ctx.fillRect(x, 80, 16, feed.height-160); }
+    ctx.fillStyle = '#5c74c9'; ctx.font='18px ui-monospace,monospace'; ctx.fillText(label, feed.width-160, feed.height-24);
+  }
+  function drawBotsIn(room){
+    const arr = enemies.filter(e=>e.room===room);
+    for(let i=0;i<arr.length;i++){ const e = arr[i]; const x=120 + i*70 + Math.random()*6; const y=160 + (room.includes('B')?60:0) + Math.random()*6; drawHead(e.role, x, y, true, false);
+      ctx.fillStyle='#cfe3ff'; ctx.font='12px ui-monospace,monospace'; ctx.fillText(e.role, x-20, y+30);
+    }
+  }
+  function renderCam(id){
+    if(id==='1A'){ drawRoom('Scenă', 5); drawBotsIn('1A'); }
+    if(id==='1B'){ drawRoom('Hol Central', 3); drawBotsIn('1B'); }
+    if(id==='2A'){ drawRoom('Hol Stânga', 2); drawBotsIn('2A'); }
+    if(id==='2B'){ drawRoom('Ușa Stânga', 1); if(state.lightL) drawBotsIn('2B'); }
+    if(id==='3A'){ drawRoom('Hol Dreapta', 2); drawBotsIn('3A'); }
+    if(id==='3B'){ drawRoom('Ușa Dreapta', 1); if(state.lightR) drawBotsIn('3B'); }
+    ctx.fillStyle = '#9fb8ff'; ctx.font = '16px ui-monospace,monospace'; ctx.fillText(CAMS[camIndex].name, 10, 22);
+    ctx.fillStyle = '#7aa3ff'; ctx.fillText(`${Math.floor(power)}%`, feed.width-60, 22);
+  }
+  function render(){ (!tabletUp || camIndex===0) ? renderOffice() : renderCam(CAMS[camIndex].id); }
+
+  // ====== Log ======
+  function pushLog(t){ const tm=new Date().toLocaleTimeString(); logEl.innerHTML=`[${tm}] ${t}<br>`+logEl.innerHTML; }
+
+  // ====== Energy (exact cum ai cerut) ======
+  function updatePower(dt){
+    power += REGEN_PER_SEC * dt;   // +1% pe secundă
+    power -= DRAIN_PER_SEC * dt;   // -1% la 30s
+    power = Math.max(0, Math.min(100, power));
+    powerLbl.textContent = Math.floor(power)+'%';
+    powerBar.style.width = Math.floor(power)+'%';
+  }
+
+  // ====== AI (stalk→hunt; atacă activ) ======
+  function isHunt(){ return elapsed >= STALK_SECONDS; }
+  function aiUpdate(dt){
+    const camId = tabletUp?CAMS[camIndex].id:'OFF';
+    const hunt = isHunt();
+
+    // agresivitate crește cu noaptea
+    const base = hunt ? (0.46 + (night-1)*0.04) : (0.24 + (night-1)*0.03);
+    const moveBase = Math.min(0.85, base);
+    const moveWatched = Math.min(0.60, 0.18 + (night-1)*0.03);
+    const cdStep = Math.max(0.6, 1.3 - (night-1)*0.08);
+
+    enemies.forEach(e=>{
+      if(e.cooldown>0){ e.cooldown-=dt; return; }
+
+      let chance = (camId===e.room) ? moveWatched : moveBase;
+      if(['1B','2A','3A'].includes(e.room)) chance += 0.10;
+
+      if(Math.random() < chance){
+        const opts = PATHS[e.room] || [];
+        if(opts.length){
+          let next = opts[Math.floor(Math.random()*opts.length)];
+          if(e.room==='1B'){ next = Math.random()<0.5 ? '2A' : '3A'; } // favorizează spre uși
+          e.room = next; e.cooldown = cdStep;
+          pushLog(e.role+' s-a deplasat la '+e.room); beep(560,55);
+        } else if(e.room==='OFFICE_L' || e.room==='OFFICE_R'){
+          // sunt la ușă → dacă hunt: atacă; dacă stalk: pândesc
+          const left = e.room==='OFFICE_L';
+          const doorClosed = left ? state.doorL : state.doorR;
+
+          if(hunt){
+            if(maskOn){ // masca ON → nu atacă, se retrag după scurt timp
+              e.cooldown = 1.8; e.room = left ? '2B' : '3B'; pushLog(e.role+' a ezitat din cauza măștii.'); beep(420,60);
+            } else if(!doorClosed){
+              triggerJumpscare(e.role, left);
+            } else {
+              e.cooldown = 2.2; e.room = left ? '2B' : '3B'; pushLog(e.role+' a fost blocat de ușă.');
+            }
+          } else {
+            // încă patrulează, doar pândește
+            e.cooldown = 1.6; e.room = left ? '2B' : '3B'; pushLog(e.role+' pândește la ușă…');
+          }
+        }
+      }
+    });
+
+    // fără curent: dacă te prind la ușă și masca e jos → rip
+    if(power<=0){
+      enemies.forEach(e=>{
+        if(e.room==='OFFICE_L' || e.room==='OFFICE_R'){
+          if(!maskOn) triggerJumpscare(e.role, e.room==='OFFICE_L');
+        }
+      });
+    }
+  }
+
+  // ====== Jumpscare ======
+  function triggerJumpscare(role, fromLeft=true){
+    if(lost || won) return;
+    lost = true; killerLine.textContent = role+' te-a prins.';
+    screen.classList.add('shake');
+    beep(160, 240, 0.12); setTimeout(()=>beep(120, 300, 0.15), 220);
+    const x = fromLeft ? 180 : feed.width-180; drawHead(role, x, feed.height-120, fromLeft, true);
+    setTimeout(()=>{ ovLose.style.display='flex'; }, 140);
+  }
+
+  // ====== Loop ======
+  function tick(ts){
+    if(!lastTs) lastTs=ts;
+    const dt=(ts-lastTs)/1000; lastTs=ts;
+
+    if(lost||won){ render(); return requestAnimationFrame(tick); }
+
+    elapsed += dt;
+    const p = elapsed / NIGHT_SECONDS; const hours = Math.min(6, Math.floor(p*6));
+    clockEl.textContent = (hours===0?12:hours)+':00 AM';
+    if(hours>=6){ won=true; nightWin.textContent=String(night); ovWin.style.display='flex'; pushLog('Ai supraviețuit!'); }
+
+    updatePower(dt);
+    aiUpdate(dt);
+    render();
+    requestAnimationFrame(tick);
+  }
+
+  // ====== Init / reset ======
+  function setupEnemies(){
+    const count = 2 + (night-1); // +1 pe noapte
+    enemies = [];
+    const startRooms = ['1A','1B','2A','3A'];
+    for(let i=0;i<count;i++){
+      const room = startRooms[Math.floor(Math.random()*startRooms.length)];
+      enemies.push({role: roles[i % roles.length], room, cooldown: 0});
+    }
+    enemyInfoEl.textContent = String(count);
+  }
+  function resetNight(){
+    power=100; elapsed=0; lastTs=0; won=false; lost=false;
+    tabletUp=false; camIndex=0; maskOn=false; updateMaskUI();
+    state.doorL=state.doorR=state.lightL=state.lightR=false; refreshLEDs();
+    buildMap(); updateCamLabel();
+    setupEnemies();
+    pushLog('Noaptea '+night+' a început. Stalk → Hunt. Masca te protejează, dar te blochează.');
+    requestAnimationFrame(tick);
+  }
+
+  // ====== LEDs & Controls ======
+  function setLED(el, on, warn=false){ el.classList.toggle('on', on && !warn); el.classList.toggle('warn', warn); }
+  function refreshLEDs(){ setLED(ledDoorL, state.doorL); setLED(ledDoorR, state.doorR); setLED(ledLightL, state.lightL); setLED(ledLightR, state.lightR); }
+
+  function updateMaskUI(){
+    maskStatus.textContent = maskOn ? 'ON' : 'OFF';
+    if(maskOn){
+      controlsBox.classList.add('disabled');
+      // dezactivez totul, mai puțin butonul măștii
+      [...controlsBox.querySelectorAll('button')].forEach(b=>{ if(b!==btnMask) b.disabled = true; });
+      tabletUp=false; camIndex=0; updateCamLabel(); highlightCam();
+    }else{
+      controlsBox.classList.remove('disabled');
+      [...controlsBox.querySelectorAll('button')].forEach(b=> b.disabled = false);
+    }
+  }
+
+  // ====== Buttons ======
+  btnMask.onclick = ()=>{ maskOn = !maskOn; updateMaskUI(); beep(maskOn? 500:700, 70); };
+  btnUse.onclick   = ()=>{ if(maskOn) return; tabletUp = !tabletUp; if(!tabletUp) camIndex=0; updateCamLabel(); highlightCam(); beep(820,60); };
+  btnLightL.onclick= ()=>{ if(maskOn) return; state.lightL = !state.lightL; refreshLEDs(); beep(740,40); };
+  btnLightR.onclick= ()=>{ if(maskOn) return; state.lightR = !state.lightR; refreshLEDs(); beep(740,40); };
+  btnDoorL.onclick = ()=>{ if(maskOn) return; if(power>0){ state.doorL = !state.doorL; refreshLEDs(); beep(480,60);} };
+  btnDoorR.onclick = ()=>{ if(maskOn) return; if(power>0){ state.doorR = !state.doorR; refreshLEDs(); beep(480,60);} };
+
+  btnRetry.onclick = ()=>{ ovLose.style.display='none'; screen.classList.remove('shake'); resetNight(); };
+  btnNext.onclick  = ()=>{ ovWin.style.display='none'; night++; nightEl.textContent=String(night); resetNight(); };
+
+  // ====== Keyboard ======
+  addEventListener('keydown', e=>{
+    const k=e.key.toLowerCase();
+    if(k==='m'){ btnMask.click(); return; } // masca merge oricând
+    if(maskOn) return; // când masca e ON, nimic altceva nu funcționează
+    if(e.code==='Space'){ e.preventDefault(); btnUse.click(); }
+    if(k==='q'){ btnDoorL.click(); }
+    if(k==='e'){ btnDoorR.click(); }
+    if(k==='a'){ btnLightL.click(); }
+    if(k==='d'){ btnLightR.click(); }
+    if(['arrowup','w','arrowdown','s'].includes(k)){
+      e.preventDefault();
+      if(tabletUp){
+        camIndex += (k==='arrowup'||k==='w')? -1:1;
+        camIndex = Math.min(CAMS.length-1, Math.max(1, camIndex));
+        updateCamLabel(); highlightCam(); beep(700,40);
+      }
+    }
+  });
+
+  // ====== Start ======
+  function init(){ nightEl.textContent=String(night); buildMap(); updateCamLabel(); refreshLEDs(); resetNight(); }
+  init();
+})();
+</script>
+</body>
+</html>

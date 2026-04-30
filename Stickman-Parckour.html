@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stickman Parkour – Endless Runner</title>
+<style>
+  :root{ --bg:#0b132b; --ink:#eaf2ff; --muted:#9fb3d9; --accent:#64b5ff; --danger:#ff6b6b; --ok:#2ecc71 }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#0b132b 0%,#0f1d3a 60%,#0c1833 100%);color:var(--ink);font-family:system-ui,Segoe UI,Roboto}
+  .wrap{width:min(96vw,960px);margin:14px auto;padding:0 8px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  h1{margin:0;font-size:clamp(18px,3vw,22px)}
+  .hud{display:flex;gap:8px;flex-wrap:wrap}
+  .pill{background:#0f1d3a;border:1px solid #24345a;border-radius:999px;padding:6px 10px;display:flex;gap:6px;align-items:center}
+  .panel{position:relative;background:#0f1b36;border:1px solid #1e2c50;border-radius:12px;padding:8px;box-shadow:0 10px 28px rgba(0,0,0,.35)}
+  canvas{display:block;width:100%;height:auto;background:linear-gradient(180deg,#6ec1ff 0%,#9dd8ff 60%,#c6e8ff 100%);border-radius:10px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  button{appearance:none;border:none;background:linear-gradient(180deg,#1b2749,#10182f);color:var(--ink);border:1px solid #2a3a62;padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:800}
+  button:active{transform:translateY(1px)}
+  .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center}
+  .card{background:#0b1024cc;border:1px solid #3a4bb3;padding:18px;border-radius:14px;max-width:min(520px,92%);text-align:center}
+  .big{font-size:40px;font-weight:900;letter-spacing:1px}
+  .tip{opacity:.9;font-size:14px}
+  /* Mobile jump zone */
+  .tapzone{position:absolute;inset:0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Stickman Parkour – Endless Runner</h1>
+    <div class="hud">
+      <div class="pill">🏁 Distanță: <b id="dist">0</b> m</div>
+      <div class="pill">⭐ Scor: <b id="score">0</b></div>
+      <div class="pill">🏆 Record: <b id="best">0</b></div>
+      <div class="pill">⚡ Viteză: <b id="spd">0</b></div>
+    </div>
+  </header>
+  <div class="panel" style="aspect-ratio: 16/9; max-height: 72vh;">
+    <canvas id="game" width="960" height="540" aria-label="Stickman Parkour"></canvas>
+    <div class="tapzone" id="tap"></div>
+    <div class="overlay" id="ov">
+      <div class="card">
+        <div class="big" id="ovTitle">STICKMAN PARKOUR</div>
+        <p class="tip" id="ovSub">Apasă <b>Space</b> / <b>↑</b> / <b>W</b> sau <b>Tap</b> pentru săritură. <br/>Poți face <b>Double Jump</b> în aer.</p>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+          <button id="start">Start</button>
+          <button id="again" style="display:none">Reîncearcă</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="controls">
+    <button id="btnPause">Pauză</button>
+    <button id="btnMute">Sunet: ON</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const cvs = $('#game');
+  const ctx = cvs.getContext('2d');
+  const ov = $('#ov');
+  const ovTitle = $('#ovTitle');
+  const ovSub = $('#ovSub');
+  const startBtn = $('#start');
+  const againBtn = $('#again');
+  const pauseBtn = $('#btnPause');
+  const muteBtn = $('#btnMute');
+  const tap = $('#tap');
+  const distLbl = $('#dist');
+  const scoreLbl = $('#score');
+  const bestLbl = $('#best');
+  const spdLbl = $('#spd');
+
+  let best = +(localStorage.getItem('stickpark_best')||0); bestLbl.textContent = best;
+
+  // ===== World settings =====
+  const GRAV = 2200; // px/s^2
+  const JUMP_V = 800; // first jump impulse
+  const DJUMP_V = 760; // double jump impulse (slightly less)
+  const MAX_DY = 1400;
+
+  let speed = 300;           // base scroll speed (px/s)
+  let speedTarget = 300;
+  let speedGain = 0.12;      // how fast speed lerps to target
+  let meters = 0;            // distance (m)
+  let score = 0;
+  let running=false, paused=false, dead=false;  
+  let t0=0;
+
+  // camera & scaling (fit canvas to panel)
+  function fit(){
+    const box = cvs.parentElement.getBoundingClientRect();
+    const w = Math.floor(box.width-16), h = Math.floor(box.height-16);
+    const ar = 16/9; let W=w, H=Math.floor(w/ar); if(H>h){ H=h; W=Math.floor(h*ar); }
+    cvs.width=W; cvs.height=H;
+  }
+  addEventListener('resize', fit);
+
+  // ===== Audio beeps =====
+  let audioCtx, muted=false;
+  function beep(freq=800, ms=70, g=0.04){ if(muted) return; try{ audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)(); const o=audioCtx.createOscillator(); const a=audioCtx.createGain(); o.type='square'; o.frequency.value=freq; o.connect(a); a.connect(audioCtx.destination); a.gain.value=g; o.start(); setTimeout(()=>o.stop(), ms);}catch(e){} }
+
+  // ===== Player (stickman) =====
+  const player = { x: 180, y: 0, vy:0, w:24, h:64, onGround:false, djump:true, runPhase:0 };
+
+  // ===== Platforms & obstacles =====
+  const groundY = () => Math.floor(cvs.height*0.78); // baseline
+  let segments=[]; // platform segments: {x, y, w}
+  let obstacles=[]; // {x, y, w, h, type}
+  let coins=[]; // optional: {x,y,r}
+
+  function resetWorld(){
+    segments.length=0; obstacles.length=0; coins.length=0; meters=0; score=0; speed=240; speedTarget=320; 
+    // initial flat segment
+    const gy = groundY();
+    segments.push({x:0, y:gy, w:cvs.width+600});
+    // seed some obstacles later
+    spawnAhead(cvs.width*2);
+  }
+
+  function spawnAhead(minX){
+    // ensure there is terrain ahead of minX
+    const lastX = segments.length? segments[segments.length-1].x + segments[segments.length-1].w : 0;
+    let cursor = lastX;
+    while(cursor < minX){
+      // random gap or platform
+      const gy = groundY();
+      const gap = Math.random()<0.28; // chance for a gap
+      if(gap){
+        const gapW = rnd(80, 180) * (1 + Math.min(1, speed/500));
+        cursor += gapW; // empty space
+      }
+      // next platform
+      const segW = rnd(260, 520);
+      const upDown = (Math.random()<0.5? -1:1) * rnd(0, Math.floor(cvs.height*0.08));
+      const y = clamp((segments.length? segments[segments.length-1].y + upDown: gy), Math.floor(cvs.height*0.45), Math.floor(cvs.height*0.85));
+      segments.push({x:cursor, y, w:segW});
+
+      // add obstacles on this segment
+      const nObs = rndInt(0,2);
+      for(let i=0;i<nObs;i++){
+        const ox = cursor + rnd(60, segW-60);
+        const kind = Math.random()<0.6? 'spike' : 'box';
+        if(kind==='spike') obstacles.push({type:'spike', x:ox, y:y-24, w:28, h:24});
+        else obstacles.push({type:'box', x:ox, y:y-32, w:34, h:32});
+      }
+      // maybe coin arc
+      if(Math.random()<0.35){
+        const k=rndInt(3,6), baseX = cursor + rnd(80, segW-80), baseY=y- rnd(60,120);
+        for(let j=0;j<k;j++){ coins.push({x: baseX + j*24, y: baseY + Math.sin(j*0.6)*10, r:6}); }
+      }
+
+      cursor += segW + rnd(40, 120);
+    }
+  }
+
+  // ===== Utils =====
+  function rnd(a,b){ return a + Math.random()*(b-a); }
+  function rndInt(a,b){ return Math.floor(rnd(a,b+1)); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+  // ===== Physics & collisions =====
+  function stepPlayer(dt){
+    player.vy += GRAV*dt; if(player.vy>MAX_DY) player.vy=MAX_DY;
+    player.y += player.vy*dt;
+
+    // move world left by speed
+    const dx = speed*dt;
+    for(const s of segments) s.x -= dx;
+    for(const o of obstacles) o.x -= dx;
+    for(const c of coins) c.x -= dx;
+
+    // platform collision (only when falling)
+    player.onGround=false;
+    const px1 = player.x - player.w/2, px2 = player.x + player.w/2;
+    for(const s of segments){
+      // player over this segment horizontally and coming from above
+      if(px2 > s.x && px1 < s.x + s.w){
+        const py = s.y - player.h;
+        if(player.y >= py && player.vy >= 0){
+          player.y = py; player.vy = 0; player.onGround=true; player.djump=true; break;
+        }
+      }
+    }
+
+    // if falling below world → dead
+    if(player.y > cvs.height + 100){ die(); }
+
+    // obstacle collision (AABB)
+    const pr = {x: px1, y: player.y, w: player.w, h: player.h};
+    for(const o of obstacles){
+      if(rectHit(pr, o)) { die(); break; }
+    }
+
+    // collect coins
+    for(let i=coins.length-1;i>=0;i--){ const c=coins[i]; if(circleRectHit({x:player.x, y:player.y+player.h/2, r:12}, {x:c.x-6,y:c.y-6,w:12,h:12})) { score+=5; coins.splice(i,1); beep(900,60,0.05); } }
+
+    // distance & speed increase
+    meters += dx/50; // scale to 'meters'
+    speedTarget = Math.min(640, 300 + meters*0.35);
+    speed += (speedTarget - speed)*Math.min(1, speedGain*dt*60);
+
+    // running anim
+    if(player.onGround) player.runPhase = (player.runPhase + dt*speed*0.05)%1; else player.runPhase = 0;
+
+    // cull past objects & spawn ahead
+    while(segments.length && segments[0].x + segments[0].w < -400) segments.shift();
+    while(obstacles.length && obstacles[0].x + obstacles[0].w < -100) obstacles.shift();
+    while(coins.length && coins[0].x < -50) coins.shift();
+    spawnAhead(cvs.width*2);
+  }
+
+  function rectHit(a,b){ return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+  function circleRectHit(c, r){ // rough
+    const cx = clamp(c.x, r.x, r.x+r.w);
+    const cy = clamp(c.y, r.y, r.y+r.h);
+    const dx = c.x - cx, dy = c.y - cy; return dx*dx + dy*dy <= c.r*c.r;
+  }
+
+  // ===== Rendering =====
+  function drawScene(dt){
+    // sky gradient already from CSS; draw parallax mountains
+    const w=cvs.width, h=cvs.height;
+    // far layer
+    ctx.fillStyle = 'rgba(0,0,40,0.15)';
+    for(let i=0;i<4;i++){ const x = (i*260 - (performance.now()*0.01)%260); ctx.beginPath(); ctx.moveTo(x, h*0.85); ctx.lineTo(x+160, h*0.6); ctx.lineTo(x+320, h*0.85); ctx.closePath(); ctx.fill(); }
+    // mid layer
+    ctx.fillStyle = 'rgba(0,0,40,0.25)';
+    for(let i=0;i<4;i++){ const x = (i*300 - (performance.now()*0.02)%300); ctx.beginPath(); ctx.moveTo(x, h*0.9); ctx.lineTo(x+160, h*0.66); ctx.lineTo(x+320, h*0.9); ctx.closePath(); ctx.fill(); }
+
+    // segments/ground
+    ctx.lineWidth=2; ctx.strokeStyle='#20324f';
+    for(const s of segments){
+      ctx.fillStyle = '#2b3f66'; ctx.fillRect(s.x, s.y, s.w, 8);
+      // supports
+      for(let k=s.x; k<s.x+s.w; k+=64){ ctx.fillStyle='#1c2a49'; ctx.fillRect(k, s.y+8, 12, 18); }
+    }
+
+    // obstacles
+    for(const o of obstacles){
+      if(o.type==='box'){ ctx.fillStyle='#384d7a'; ctx.fillRect(o.x, o.y, o.w, o.h); ctx.strokeStyle='#1c2a49'; ctx.strokeRect(o.x, o.y, o.w, o.h); }
+      else if(o.type==='spike'){ ctx.fillStyle='#e74c3c'; ctx.beginPath(); ctx.moveTo(o.x, o.y+o.h); ctx.lineTo(o.x+o.w/2, o.y); ctx.lineTo(o.x+o.w, o.y+o.h); ctx.closePath(); ctx.fill(); }
+    }
+
+    // coins
+    for(const c of coins){ ctx.fillStyle='#ffd166'; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI*2); ctx.fill(); ctx.fillStyle='#ffb703'; ctx.beginPath(); ctx.arc(c.x, c.y, c.r*0.55, 0, Math.PI*2); ctx.fill(); }
+
+    // player (stickman)
+    drawStickman(player.x, player.y, player.runPhase, !player.onGround);
+
+    // HUD live
+    distLbl.textContent = Math.floor(meters);
+    scoreLbl.textContent = score;
+    spdLbl.textContent = Math.floor(speed);
+  }
+
+  function drawStickman(x, yTop, phase, inAir){
+    const h = player.h, w = player.w; const y = yTop + h; // baseline at feet
+    ctx.save();
+    ctx.translate(x,0);
+    ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#0b1024'; ctx.lineWidth=6;
+    // shadow
+    ctx.globalAlpha=0.15; ctx.beginPath(); ctx.ellipse(0, y-4, 22, 6, 0, 0, Math.PI*2); ctx.fillStyle='#000'; ctx.fill(); ctx.globalAlpha=1;
+    // body
+    ctx.strokeStyle='#111'; ctx.lineWidth=4;
+    // torso
+    ctx.beginPath(); ctx.moveTo(0, y-h+18); ctx.lineTo(0, y-22); ctx.stroke();
+    // head
+    ctx.beginPath(); ctx.arc(0, y-h+6, 10, 0, Math.PI*2); ctx.stroke();
+    // arms
+    const a = Math.sin(phase*2*Math.PI)*10; // swing
+    ctx.beginPath(); ctx.moveTo(0, y-h+24); ctx.lineTo(-10 - a, y-h+38); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, y-h+24); ctx.lineTo( 10 + a, y-h+38); ctx.stroke();
+    // legs
+    const k = inAir? 0 : Math.sin(phase*2*Math.PI)*10;
+    ctx.beginPath(); ctx.moveTo(0, y-22); ctx.lineTo(-8 - k, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, y-22); ctx.lineTo( 8 + k, y); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ===== Input =====
+  const keys=new Set();
+  addEventListener('keydown', e=>{
+    const k=e.key.toLowerCase();
+    if(['w','arrowup',' '].includes(k)) { e.preventDefault(); jump(); }
+    if(k==='p') togglePause();
+  });
+  tap.addEventListener('touchstart', e=>{ e.preventDefault(); jump(); }, {passive:false});
+  tap.addEventListener('mousedown', jump);
+
+  function jump(){
+    if(!running){ start(); return; }
+    if(paused||dead) return;
+    if(player.onGround){ player.vy = -JUMP_V; player.onGround=false; player.djump=true; beep(720,60,0.05); }
+    else if(player.djump){ player.vy = -DJUMP_V; player.djump=false; beep(820,60,0.05); }
+  }
+
+  function togglePause(){ if(!running||dead) return; paused=!paused; pauseBtn.textContent = paused? 'Continuă':'Pauză'; if(!paused) beep(600,60,0.04); }
+  pauseBtn.onclick = togglePause;
+  muteBtn.onclick = ()=>{ muted=!muted; muteBtn.textContent='Sunet: ' + (muted? 'OFF':'ON'); };
+
+  // ===== Game state =====
+  function start(){ resetWorld(); running=true; paused=false; dead=false; ov.style.display='none'; t0=0; }
+  function die(){ if(dead) return; dead=true; running=false; beep(220,160,0.08); ov.style.display='flex'; startBtn.style.display='none'; againBtn.style.display='inline-block'; ovTitle.textContent='AI PIERDUT'; ovSub.innerHTML='Distanță: <b>'+Math.floor(meters)+'m</b> · Scor: <b>'+score+'</b>'; if(score>best){ best=score; localStorage.setItem('stickpark_best', String(best)); bestLbl.textContent=best; } }
+  startBtn.onclick = ()=> start();
+  againBtn.onclick = ()=> start();
+
+  // ===== Main loop =====
+  function tick(ts){ if(!t0) t0=ts; const dt=(ts-t0)/1000; t0=ts; fit(); ctx.clearRect(0,0,cvs.width,cvs.height);
+    if(running && !paused){ stepPlayer(dt); drawScene(dt); }
+    else { drawScene(0); }
+    requestAnimationFrame(tick); }
+
+  // init
+  ov.style.display='flex';
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

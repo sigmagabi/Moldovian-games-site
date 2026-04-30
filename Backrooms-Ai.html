@@ -1,0 +1,234 @@
+<html lang="ro"><head></head><body contenteditable="false">
+The content of the body element is displayed in your browser.
+
+
+
+
+
+
+    <meta charset="UTF-8">
+    <title>Backrooms: Enhanced Monster AI</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        #waze-container { 
+            position: absolute; top: 15px; left: 15px; 
+            width: 140px; height: 140px; 
+            border: 2px solid rgba(255, 255, 0, 0.5); 
+            background: rgba(0, 0, 0, 0.85); 
+            border-radius: 8px; z-index: 100;
+        }
+        #waze-canvas { width: 100%; height: 100%; border-radius: 6px; }
+        #hud { position: absolute; top: 165px; left: 15px; color: yellow; font-size: 12px; z-index: 100; }
+        #stamina-bar { width: 140px; height: 4px; background: #333; margin-top: 4px; border: 1px solid #555; }
+        #stamina-fill { width: 100%; height: 100%; background: yellow; }
+        .btn-download { position: absolute; bottom: 20px; right: 20px; padding: 10px 15px; background: yellow; border: none; font-weight: bold; cursor: pointer; z-index: 200; border-radius: 4px; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 500; text-align: center; }
+        canvas { display: block; width: 100vw; height: 100vh; image-rendering: pixelated; }
+    </style>
+
+
+
+<div id="waze-container"><canvas id="waze-canvas" width="140" height="140"></canvas></div>
+<div id="hud">STAMINA<div id="stamina-bar"><div id="stamina-fill" style="width: 100%;"></div></div></div>
+<button class="btn-download" onclick="downloadGame()">📥 DOWNLOAD JOC</button>
+
+<div id="overlay">
+    <h1 id="status-title"></h1>
+    <p id="status-p"></p>
+    <button onclick="location.reload()" style="padding:10px; cursor:pointer; font-weight:bold;">REÎNCEARCĂ</button>
+</div>
+
+<canvas id="main-render" width="1563" height="892"></canvas>
+
+<script>
+const canvas = document.getElementById('main-render');
+const ctx = canvas.getContext('2d');
+const wCanvas = document.getElementById('waze-canvas');
+const wCtx = wCanvas.getContext('2d');
+
+let gameState = "PLAYING"; 
+let player = { x: 1.5, y: 1.5, dir: 0, stamina: 100 };
+let monster = { x: 18.5, y: 1.5, speed: 0.02, state: "WANDER" };
+let keys = {};
+
+const grid = [
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,1,0,0,0,0,0,0,0,3,0,1,0,0,0,1],
+    [1,0,1,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,1,0,1,0,0,0,1,0,1],
+    [1,3,1,0,1,1,1,1,1,1,0,1,0,1,1,1,0,1,0,1],
+    [1,0,0,0,1,0,0,0,0,1,0,1,0,0,0,1,0,0,0,1],
+    [1,1,1,0,1,0,1,1,0,1,0,1,1,1,0,1,1,1,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1,0,1],
+    [1,0,1,1,1,1,1,0,1,1,1,1,0,1,1,1,0,1,0,1],
+    [1,0,1,0,0,0,0,0,0,3,0,0,0,0,0,1,0,0,0,1],
+    [1,0,1,0,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1],
+    [1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+    [1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,1,1,0,1,3,1,1,1,1,1,1,1,1,0,1,0,1],
+    [1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1],
+    [1,1,1,0,1,1,1,1,1,1,1,1,1,1,0,1,1,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+    [1,0,1,1,1,1,1,1,1,3,1,1,0,1,1,1,1,1,9,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+];
+
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.onresize = resize; resize();
+
+window.onkeydown = e => keys[e.code] = true;
+window.onkeyup = e => keys[e.code] = false;
+canvas.onclick = () => { if(gameState === "PLAYING") canvas.requestPointerLock(); };
+document.onmousemove = e => { if(document.pointerLockElement) player.dir += e.movementX * 0.003; };
+
+function downloadGame() {
+    const html = document.documentElement.outerHTML;
+    const blob = new Blob([html], {type: 'text/html'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Backrooms_Monster_Edition.html';
+    a.click();
+}
+
+function update() {
+    if(gameState !== "PLAYING") return;
+
+    // Miscare Jucator
+    let speed = (keys['ShiftLeft'] && player.stamina > 0) ? 0.08 : 0.04;
+    if(keys['ShiftLeft'] && (keys['KeyW'] || keys['KeyS'])) player.stamina -= 0.4;
+    else player.stamina = Math.min(100, player.stamina + 0.2);
+
+    let dx = 0, dy = 0;
+    if(keys['KeyW']) { dx += Math.cos(player.dir)*speed; dy += Math.sin(player.dir)*speed; }
+    if(keys['KeyS']) { dx -= Math.cos(player.dir)*speed; dy -= Math.sin(player.dir)*speed; }
+    if(keys['KeyA']) { dx += Math.sin(player.dir)*speed; dy -= Math.cos(player.dir)*speed; }
+    if(keys['KeyD']) { dx -= Math.sin(player.dir)*speed; dy += Math.cos(player.dir)*speed; }
+
+    if(grid[Math.floor(player.y + dy)][Math.floor(player.x + dx)] !== 1) {
+        player.x += dx; player.y += dy;
+        if(grid[Math.floor(player.y)][Math.floor(player.x)] === 9) endGame("WIN");
+    }
+
+    // Inteligenta Monstru (Sistem de navigare imbunatatit)
+    let distToPlayer = Math.sqrt((monster.x - player.x)**2 + (monster.y - player.y)**2);
+    
+    if(distToPlayer < 7) { 
+        monster.state = "CHASE";
+        monster.speed = 0.055;
+        
+        let bestNextX = monster.x;
+        let bestNextY = monster.y;
+        let minDistance = Infinity;
+
+        // Scaneaza directiile pentru a gasi calea optima spre jucator
+        for(let ang = 0; ang < Math.PI * 2; ang += Math.PI / 4) {
+            let testX = monster.x + Math.cos(ang) * monster.speed;
+            let testY = monster.y + Math.sin(ang) * monster.speed;
+
+            if(grid[Math.floor(testY)][Math.floor(testX)] !== 1) {
+                let testDist = Math.sqrt((testX - player.x)**2 + (testY - player.y)**2);
+                if(testDist < minDistance) {
+                    minDistance = testDist;
+                    bestNextX = testX;
+                    bestNextY = testY;
+                }
+            }
+        }
+        monster.x = bestNextX;
+        monster.y = bestNextY;
+    } else {
+        monster.state = "WANDER";
+        monster.speed = 0.02;
+        let wanderAngle = (Date.now() / 1000) + (Math.random() * 0.1); 
+        let wx = Math.cos(wanderAngle) * monster.speed;
+        let wy = Math.sin(wanderAngle) * monster.speed;
+        if(grid[Math.floor(monster.y + wy)][Math.floor(monster.x + wx)] !== 1) {
+            monster.x += wx; monster.y += wy;
+        }
+    }
+
+    if(distToPlayer < 0.4) endGame("DEATH");
+
+    document.getElementById('stamina-fill').style.width = player.stamina + "%";
+    draw();
+    drawWaze();
+    requestAnimationFrame(update);
+}
+
+function endGame(type) {
+    gameState = type;
+    document.exitPointerLock();
+    const overlay = document.getElementById('overlay');
+    overlay.style.display = 'flex';
+    if(type === "WIN") {
+        overlay.style.background = "rgba(0,0,0,0.9)";
+        document.getElementById('status-title').innerText = "🎉 FELICITĂRI! 🎉";
+        document.getElementById('status-p').innerText = "AI SCĂPAT DIN LABIRINT!";
+        document.getElementById('status-title').style.color = "yellow";
+    } else {
+        overlay.style.background = "rgba(50,0,0,0.9)";
+        document.getElementById('status-title').innerText = "TE-A PRINS!";
+        document.getElementById('status-p').innerText = "ENTITATEA TE-A GĂSIT ÎN ÎNTUNERIC.";
+        document.getElementById('status-title').style.color = "white";
+    }
+}
+
+function drawWaze() {
+    wCtx.fillStyle = "#000"; wCtx.fillRect(0,0,140,140);
+    let s = 140 / 20;
+    for(let y=0; y<20; y++) {
+        for(let x=0; x<20; x++) {
+            if(grid[y][x] === 1) { wCtx.fillStyle = "#333"; wCtx.fillRect(x*s, y*s, s-1, s-1); }
+            if(grid[y][x] === 9) { wCtx.fillStyle = "blue"; wCtx.fillRect(x*s, y*s, s, s); }
+        }
+    }
+    wCtx.fillStyle = "lime"; wCtx.beginPath(); wCtx.arc(player.x*s, player.y*s, 3, 0, 7); wCtx.fill();
+    let d = Math.sqrt((monster.x-player.x)**2 + (monster.y-player.y)**2);
+    if(d < 7) {
+        wCtx.fillStyle = "red"; wCtx.beginPath(); wCtx.arc(monster.x*s, monster.y*s, 3, 0, 7); wCtx.fill();
+    }
+}
+
+function draw() {
+    ctx.fillStyle = "#111"; ctx.fillRect(0, 0, canvas.width, canvas.height/2);
+    ctx.fillStyle = "#3b301a"; ctx.fillRect(0, canvas.height/2, canvas.width, canvas.height/2);
+
+    const fov = 1.1;
+    for(let i=0; i<canvas.width; i+=4) {
+        let angle = player.dir - fov/2 + (i/canvas.width)*fov;
+        let d = 0, hit = 0;
+        let rx = Math.cos(angle), ry = Math.sin(angle);
+        while(d < 14 && hit === 0) {
+            d += 0.05;
+            let tx = Math.floor(player.x + rx*d), ty = Math.floor(player.y + ry*d);
+            if(grid[ty][tx] === 1 || grid[ty][tx] === 3 || grid[ty][tx] === 9) hit = grid[ty][tx];
+        }
+        let h = canvas.height / (d * Math.cos(angle - player.dir));
+        let lum = 220 - d*15;
+        ctx.fillStyle = hit === 1 ? `rgb(${lum}, ${lum*0.9}, 50)` : (hit === 3 ? "red" : "blue");
+        ctx.fillRect(i, (canvas.height-h)/2, 4, h);
+
+        let spriteAngle = Math.atan2(monster.y - player.y, monster.x - player.x) - player.dir;
+        if(spriteAngle < -Math.PI) spriteAngle += Math.PI*2;
+        if(spriteAngle > Math.PI) spriteAngle -= Math.PI*2;
+        
+        if(Math.abs(spriteAngle) < fov/2) {
+            let spriteDist = Math.sqrt((monster.x-player.x)**2 + (monster.y-player.y)**2);
+            let spriteSize = canvas.height / spriteDist;
+            let screenX = (spriteAngle / fov + 0.5) * canvas.width;
+            if(spriteDist < d) { 
+                ctx.fillStyle = `rgba(0,0,0, ${1 - spriteDist/10})`;
+                ctx.fillRect(screenX - spriteSize/4, canvas.height/2 - spriteSize/2, spriteSize/2, spriteSize);
+                ctx.fillStyle = "red";
+                ctx.fillRect(screenX - 5, canvas.height/2 - spriteSize/3, 3, 3);
+                ctx.fillRect(screenX + 2, canvas.height/2 - spriteSize/3, 3, 3);
+            }
+        }
+    }
+}
+update();
+</script>
+
+
+</body></html>

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>Cool Games - Gabi (Emoji Edition)</title>
+    <style>
+        :root {
+            --bg-gradient: radial-gradient(circle at center, #4a2b11 0%, #0a0a0a 100%);
+            --card-bg: rgba(15, 15, 25, 0.85);
+            --accent-green: #23d5ab;
+            --text-main: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            font-family: 'Segoe UI', sans-serif;
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* --- ADMIN PANEL --- */
+        #admin-panel {
+            background: rgba(0, 0, 0, 0.95);
+            border: 1px solid #4facfe;
+            padding: 25px;
+            border-radius: 15px;
+            margin-top: 20px;
+            width: 90%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        label { font-size: 0.8rem; color: #4facfe; font-weight: bold; }
+
+        input[type="file"] {
+            background: #111;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px dashed #444;
+            color: #888;
+            cursor: pointer;
+        }
+
+        select {
+            background: #111;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            font-size: 1rem;
+        }
+
+        .btn-add {
+            background: #4facfe;
+            color: black;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* --- GRID --- */
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+            width: 90%;
+            max-width: 1100px;
+            padding: 50px 0;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid rgba(255,255,255,0.05);
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+        }
+
+        .emoji-display { font-size: 3rem; margin-bottom: 10px; display: block; }
+        .file-name { font-size: 1rem; font-weight: bold; color: #eee; word-break: break-all; }
+
+        .play-btn {
+            background: var(--accent-green);
+            color: black;
+            text-decoration: none;
+            padding: 12px;
+            border-radius: 12px;
+            display: block;
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+        #toggle-admin { position: fixed; bottom: 20px; right: 20px; cursor: pointer; background: none; border: none; font-size: 24px; z-index: 1000; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <button id="toggle-admin" onclick="document.getElementById('admin-panel').classList.toggle('hidden')">⚙️</button>
+
+    <div id="admin-panel">
+        <div class="input-group">
+            <label>1. Alege fișierul jocului:</label>
+            <input type="file" id="file-picker" accept=".html">
+        </div>
+
+        <div class="input-group">
+            <label>2. Alege Emoji-ul potrivit:</label>
+            <select id="emoji-picker">
+                <!-- CATEGORIA JOCURI -->
+                <optgroup label="Jocuri & Tech">
+                    <option value="🎮">🎮 Consolă</option>
+                    <option value="🕹️">🕹️ Joystick</option>
+                    <option value="👾">👾 Monstru Pixel</option>
+                    <option value="💻">💻 Programare</option>
+                    <option value="🔊">🔊 Audio System[cite: 24]</option>
+                </optgroup>
+                <!-- CATEGORIA ACTIUNE & LUPTA -->
+                <optgroup label="Acțiune & Luptă">
+                    <option value="⚔️">⚔️ Gladiators</option>
+                    <option value="🛡️">🛡️ Apărare</option>
+                    <option value="💣">💣 Bombă</option>
+                    <option value="🔫">🔫 Shooter</option>
+                    <option value="🥊">🥊 Box</option>
+                </optgroup>
+                <!-- CATEGORIA HORROR & MONSTRI -->
+                <optgroup label="Horror & Monștri">
+                    <option value="🧟">🧟 Zid vs Zombi[cite: 24]</option>
+                    <option value="👻">👻 Escape Barn[cite: 17]</option>
+                    <option value="💀">💀 Craniu</option>
+                    <option value="🧛">🧛 Vampir</option>
+                    <option value="👁️">👁️ Backrooms[cite: 14]</option>
+                </optgroup>
+                <!-- CATEGORIA VEHICULE -->
+                <optgroup label="Vehicule & Viteză">
+                    <option value="🏎️">🏎️ Cyber Rider</option>
+                    <option value="🚀">🚀 Space Explore</option>
+                    <option value="🚜">🚜 Tractor/Barn</option>
+                    <option value="🚁">🚁 Elicopter</option>
+                    <option value="🚲">🚲 Bicicletă</option>
+                </optgroup>
+                <!-- CATEGORIA ANIMALE & ALTELE -->
+                <optgroup label="Animale & Altele">
+                    <option value="🐱">🐱 Motanul/Șoarecele</option>
+                    <option value="🐭">🐭 Șoarece</option>
+                    <option value="🐦">🐦 Flappy Bird[cite: 16]</option>
+                    <option value="🧩">🧩 Puzzle/Block Blast</option>
+                    <option value="🔥">🔥 Foc/Boss</option>
+                    <option value="⭐">⭐ Stea/Scor</option>
+                </optgroup>
+            </select>
+        </div>
+
+        <button class="btn-add" onclick="addGame()">Adaugă în Portal</button>
+    </div>
+
+    <div class="game-grid" id="grid"></div>
+
+    <script>
+        let games = JSON.parse(localStorage.getItem('gabiPortalV2')) || [];
+
+        function render() {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            games.forEach((g, i) => {
+                grid.innerHTML += `
+                    <div class="card">
+                        <span class="emoji-display">${g.emoji}</span>
+                        <div class="file-name">${g.name}</div>
+                        <a href="${g.name}" class="play-btn">Play ▶</a>
+                        <button onclick="remove(${i})" style="background:none; border:none; color:#444; margin-top:15px; cursor:pointer; font-size:0.7rem;">Elimină</button>
+                    </div>
+                `;
+            });
+            localStorage.setItem('gabiPortalV2', JSON.stringify(games));
+        }
+
+        function addGame() {
+            const fileInput = document.getElementById('file-picker');
+            const emojiInput = document.getElementById('emoji-picker');
+
+            if (fileInput.files.length > 0) {
+                const fileName = fileInput.files[0].name;
+                games.push({
+                    name: fileName,
+                    emoji: emojiInput.value
+                });
+                render();
+                fileInput.value = ""; 
+            } else {
+                alert("Te rog selectează un fișier!");
+            }
+        }
+
+        function remove(i) {
+            games.splice(i, 1);
+            render();
+        }
+
+        render();
+    </script>
+</body>
+</html>

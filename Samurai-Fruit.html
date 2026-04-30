@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ro"><head></head><body contenteditable="false">
+The content of the body element is displayed in your browser.
+
+
+
+
+
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Samurai Fruit - Versiunea Finală</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #2c1a1a;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+
+        /* Panou Scor și Vieți */
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #f1c40f;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px #000;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 2px solid #d32f2f;
+            z-index: 100; /* Foarte sus */
+            pointer-events: none;
+        }
+
+        /* Container Buton Download - REPARAT */
+        #top-right-menu {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 999; /* Cel mai sus dintre toate */
+        }
+
+        .download-btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #27ae60;
+            color: white;
+            border: 2px solid #ffffff;
+            border-radius: 8px;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            transition: 0.3s;
+        }
+
+        .download-btn:hover {
+            background: #2ecc71;
+            transform: scale(1.05);
+        }
+
+        #game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            display: none;
+            z-index: 1000;
+            background: rgba(0,0,0,0.95);
+            padding: 50px;
+            border: 5px solid #d32f2f;
+            border-radius: 20px;
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+    </style>
+
+
+
+    <div id="ui">
+        SCOR: <span id="score">120</span> | 
+        VIEȚI: <span id="lives">5</span>
+    </div>
+
+    <div id="top-right-menu">
+        <button class="download-btn" onclick="downloadGame()">📥 DESCARCĂ JOCUL</button>
+    </div>
+
+    <div id="game-over">
+        <h1 style="font-size: 50px; color: #d32f2f;">GAME OVER</h1>
+        <p style="font-size: 24px;">Scor Final: <span id="final-score">0</span></p>
+        <button class="download-btn" style="background:#d32f2f;" onclick="resetGame()">JOACĂ DIN NOU</button>
+    </div>
+
+    <canvas id="gameCanvas" width="1504" height="892"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const livesEl = document.getElementById('lives');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreEl = document.getElementById('final-score');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let score = 0;
+        let lives = 5;
+        let fruits = [];
+        let particles = [];
+        let swordTrail = []; 
+        let gameActive = true;
+
+        class Fruit {
+            constructor() {
+                this.radius = 35;
+                this.x = Math.random() * (canvas.width - 150) + 75;
+                this.y = canvas.height + this.radius;
+                this.speedY = -(Math.random() * 3 + 11); 
+                this.speedX = (Math.random() - 0.5) * 6;
+                this.gravity = 0.22; 
+                this.color = `hsl(${Math.random() * 360}, 80%, 60%)`;
+                this.isCut = false;
+            }
+
+            update() {
+                this.speedY += this.gravity;
+                this.x += this.speedX;
+                this.y += this.speedY;
+
+                // Bounce pe pereți
+                if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) {
+                    this.speedX *= -1;
+                }
+
+                // Pierzi viață dacă trece de baza ecranului
+                if (this.y > canvas.height + 100 && !this.isCut) {
+                    lives--;
+                    this.isCut = true; 
+                    updateUI();
+                    if (lives <= 0) endGame();
+                }
+            }
+
+            draw() {
+                if (this.isCut) return;
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.size = Math.random() * 6 + 2;
+                this.speedX = (Math.random() - 0.5) * 12;
+                this.speedY = (Math.random() - 0.5) * 12;
+                this.alpha = 1;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.alpha -= 0.03;
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+                ctx.restore();
+            }
+        }
+
+        function updateUI() {
+            scoreEl.innerText = score;
+            livesEl.innerText = lives;
+        }
+
+        function spawnFruit() {
+            if (!gameActive) return;
+            fruits.push(new Fruit());
+            setTimeout(spawnFruit, 900);
+        }
+
+        function animate() {
+            if (!gameActive) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // DESENARE URMA SABIE
+            if (swordTrail.length > 2) {
+                ctx.beginPath();
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 5;
+                ctx.lineCap = "round";
+                ctx.moveTo(swordTrail[0].x, swordTrail[0].y);
+                for (let i = 1; i < swordTrail.length; i++) {
+                    ctx.lineTo(swordTrail[i].x, swordTrail[i].y);
+                }
+                ctx.stroke();
+            }
+            if(swordTrail.length > 0) swordTrail.shift();
+
+            fruits.forEach((f, i) => {
+                f.update();
+                f.draw();
+                if (f.y > canvas.height + 200) fruits.splice(i, 1);
+            });
+
+            particles.forEach((p, i) => {
+                p.update();
+                p.draw();
+                if (p.alpha <= 0) particles.splice(i, 1);
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        function handleMove(x, y) {
+            if (!gameActive) return;
+            swordTrail.push({x, y});
+            if (swordTrail.length > 15) swordTrail.shift();
+
+            fruits.forEach(f => {
+                const d = Math.hypot(x - f.x, y - f.y);
+                if (d < f.radius + 20 && !f.isCut) {
+                    f.isCut = true;
+                    score += 10;
+                    updateUI();
+                    for(let i=0; i<15; i++) particles.push(new Particle(f.x, f.y, f.color));
+                }
+            });
+        }
+
+        canvas.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
+        canvas.addEventListener('touchmove', (e) => {
+            handleMove(e.touches[0].clientX, e.touches[0].clientY);
+            e.preventDefault();
+        }, {passive: false});
+
+        function endGame() {
+            gameActive = false;
+            finalScoreEl.innerText = score;
+            gameOverScreen.style.display = 'block';
+        }
+
+        function resetGame() {
+            score = 0; lives = 5; fruits = []; particles = []; swordTrail = [];
+            gameActive = true;
+            updateUI();
+            gameOverScreen.style.display = 'none';
+            spawnFruit();
+            animate();
+        }
+
+        // FUNCȚIA DE DOWNLOAD REPARATĂ
+        function downloadGame() {
+            // Luăm tot codul HTML al paginii
+            const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'SamuraiFruit_Joc.html';
+            a.click();
+        }
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        updateUI();
+        spawnFruit();
+        animate();
+    </script>
+
+</body></html>

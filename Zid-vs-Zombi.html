@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Zid vs Zombi – Fix spawn & shooter</title>
+<style>
+  :root{
+    --bg1:#081021; --bg2:#0c1830; --ink:#eaf2ff;
+    --zombie:#5bd36a; --wall:#7b8794; --bullet:#ffd166;
+    --allySword:#ff6b6b; --allyShooter:#64b5ff; --ground:#20324f;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,var(--bg1),var(--bg2));color:var(--ink);font-family:system-ui,Segoe UI,Roboto}
+  .wrap{width:min(96vw,1100px);margin:12px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+  h1{margin:0;font-size:clamp(16px,2.8vw,22px)}
+  .hud{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .pill{background:#0d1b31;border:1px solid #24345a;border-radius:999px;padding:6px 10px;display:flex;gap:6px;align-items:center;font-weight:800}
+  .panel{position:relative;background:#0b1530;border:1px solid #111827;border-radius:12px;padding:8px;box-shadow:0 10px 28px rgba(0,0,0,.35)}
+  canvas{display:block;width:100%;height:auto;background:linear-gradient(180deg,#071428 0%,#071020 60%);border-radius:10px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+  button{appearance:none;border:none;background:linear-gradient(180deg,#1b2749,#0f1a2b);color:var(--ink);border:1px solid #2a3a62;padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:800}
+  button:active{transform:translateY(1px)}
+  .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center}
+  .card{background:#071627cc;border:1px solid #1f3a63;padding:18px;border-radius:14px;max-width:min(520px,92%);text-align:center}
+  .big{font-size:36px;font-weight:900;letter-spacing:1px;color:#ff8b8b}
+  .tip{opacity:.9;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Zid vs. Zombi – Fix</h1>
+    <div class="hud">
+      <div class="pill">🧿 Suflete: <b id="souls">0</b></div>
+      <div class="pill">🎯 Scor: <b id="score">0</b></div>
+      <div class="pill">🧱 Zid: <b id="hp">400</b></div>
+      <div class="pill">🌊 Val: <b id="wave">1</b></div>
+      <button id="btnDownload" title="Descarcă jocul">⬇️ Download</button>
+    </div>
+  </header>
+
+  <div class="panel">
+    <canvas id="game" width="1000" height="560"></canvas>
+    <div class="overlay" id="ov">
+      <div class="card">
+        <div class="big">GAME OVER</div>
+        <p class="tip" id="ovMsg">Zombii au rupt zidul. Apasă <b>Repornește</b> și încearcă din nou!</p>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
+          <button id="again">Repornește</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div style="display:flex;gap:8px;align-items:center">
+      <button id="buySword">1) Luptător cu sabie <span style="opacity:.85">(5 suflete)</span></button>
+      <button id="buyShooter">2) Trăgător pe zid <span style="opacity:.85">(10 suflete)</span></button>
+    </div>
+    <div style="margin-left:12px;color:#bcd3ff">Controale: Click/tap = trage spre mouse · 1 = sabier · 2 = trăgător</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const cvs = $('#game'), ctx = cvs.getContext('2d');
+  const soulsEl = $('#souls'), scoreEl = $('#score'), hpEl = $('#hp'), waveEl = $('#wave');
+  const ov = $('#ov'), again = $('#again'), btnDownload = $('#btnDownload');
+  const btnSword = $('#buySword'), btnShooter = $('#buyShooter');
+
+  const W = cvs.width, H = cvs.height;
+  const groundY = H - 90;
+  const wallX = W - 140;
+  let running = true, gameOver = false, t0 = 0;
+
+  let souls = 0, score = 0, wallHP = 400, wave = 1;
+  hpEl.textContent = wallHP;
+
+  const player = { x: wallX + 28, y: groundY - 120, cd: 0, cdMax: 0.18, aimX: W/2, aimY: groundY-60 };
+
+  const bullets = [];
+  const zombies = [];
+  const sworders = [];
+  const shooters = [];
+
+  // SPAWN CONTROL
+  let spawnTimer = 1.6;
+  const MAX_ACTIVE_Z = 7;
+  function spawnZombie(){
+    const z = {
+      x:-40, y: groundY - 20,
+      speed: 16 + Math.random()*6 + wave*1.0,
+      maxHp: 4 + Math.floor(wave/2),
+      hp: 4 + Math.floor(wave/2),
+      rad: 18
+    };
+    zombies.push(z);
+  }
+
+  // audio
+  let audioCtx;
+  function beep(freq=800,ms=80,g=0.04){
+    try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+      const o=audioCtx.createOscillator(), a=audioCtx.createGain();
+      o.type='square'; o.frequency.value=freq; o.connect(a); a.connect(audioCtx.destination);
+      a.gain.value=g; o.start(); setTimeout(()=>o.stop(), ms);
+    }catch(e){} }
+
+  function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+  function dist2(ax,ay,bx,by){ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; }
+
+  function drawBackground(){
+    ctx.fillStyle = '#03101b';
+    ctx.fillRect(0,0,W,groundY);
+    for(let i=0;i<40;i++){
+      const x = (i*23 + (performance.now()*0.02)%W) % W;
+      const y = 20 + (i*31) % (groundY-40);
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      ctx.fillRect(x,y,2,2);
+    }
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--ground') || '#20324f';
+    ctx.fillRect(0, groundY, W, H-groundY);
+  }
+
+  function drawWall(){
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--wall') || '#7b8794';
+    ctx.fillRect(wallX, groundY-180, 100, 180);
+    ctx.fillStyle = '#081828';
+    ctx.fillRect(wallX-22, groundY-220, 14, 180);
+    ctx.fillStyle = wallHP>150 ? '#2ecc71' : (wallHP>60 ? '#ffd166' : '#ff6b6b');
+    const hh = Math.floor(180 * clamp(wallHP/400,0,1));
+    ctx.fillRect(wallX-22, groundY-40-hh, 14, hh);
+  }
+
+  function drawPlayer(){
+    const x = player.x, y = player.y;
+    const ang = Math.atan2(player.aimY - (y-24), player.aimX - (x+6));
+    ctx.save();
+    ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#eaf2ff'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.arc(x, y-40, 10,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y-30); ctx.lineTo(x, y-2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y-18); ctx.lineTo(x-12, y-2); ctx.moveTo(x, y-18); ctx.lineTo(x+12, y-2); ctx.stroke();
+    ctx.strokeStyle = '#ffd166';
+    ctx.translate(x+6, y-24); ctx.rotate(ang);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(22,-4); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawZombies(){
+    for(const z of zombies){
+      ctx.save();
+      ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--zombie') || '#5bd36a';
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.rad, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#132d17'; ctx.fillRect(z.x-10, z.y-12, 8, 4);
+      ctx.restore();
+      ctx.fillStyle = '#000'; ctx.fillRect(z.x-16, z.y-30, 32, 5);
+      ctx.fillStyle = '#ff6b6b'; ctx.fillRect(z.x-16, z.y-30, 32 * clamp(z.hp / z.maxHp, 0, 1), 5);
+    }
+  }
+
+  function drawAllies(){
+    for(const a of sworders){
+      ctx.save();
+      ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--allySword') || '#ff6b6b';
+      ctx.lineWidth=4;
+      ctx.beginPath(); ctx.arc(a.x, a.y-32, 9, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(a.x, a.y-18); ctx.lineTo(a.x, a.y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(a.x+6, a.y-16); ctx.lineTo(a.x+26, a.y-36); ctx.stroke();
+      ctx.fillStyle = '#000'; ctx.fillRect(a.x-18, a.y-48, 36, 6);
+      ctx.fillStyle = '#64ff8a'; ctx.fillRect(a.x-18, a.y-48, 36 * clamp(a.hp / a.maxHp,0,1), 6);
+      ctx.restore();
+    }
+    for(const s of shooters){
+      ctx.save();
+      ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--allyShooter') || '#64b5ff';
+      ctx.lineWidth=4;
+      ctx.beginPath(); ctx.arc(s.x, s.y-32, 8, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(s.x, s.y-24); ctx.lineTo(s.x, s.y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(s.x+6, s.y-22); ctx.lineTo(s.x+24, s.y-26); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawBullets(){ ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bullet') || '#ffd166'; for(const b of bullets){ ctx.fillRect(b.x-3,b.y-2,6,4); } }
+
+  function update(dt){
+    spawnTimer -= dt;
+    if(spawnTimer <= 0){
+      if(zombies.length < MAX_ACTIVE_Z){ spawnZombie(); }
+      spawnTimer = Math.max(2.0 - wave*0.04, 1.0);
+      wave++; waveEl.textContent = wave;
+    }
+
+    player.cd = Math.max(0, player.cd - dt);
+
+    for(const b of bullets){ b.x += b.vx*dt; b.y += b.vy*dt; }
+    for(let i=bullets.length-1;i>=0;i--){ const b = bullets[i]; if(b.x < -80 || b.x > W+80 || b.y < -80 || b.y > H+80) bullets.splice(i,1); }
+
+    for(const z of zombies){ z.x += z.speed * dt; }
+
+    for(let si = sworders.length-1; si >= 0; si--){
+      const a = sworders[si];
+      if(!a.inCombat){ a.x += a.speed * dt; }
+      a.cd = Math.max(0, a.cd - dt);
+
+      let targetIndex = -1;
+      for(let zi=0; zi<zombies.length; zi++){
+        const z = zombies[zi];
+        if(Math.abs(z.x - a.x) < a.range && Math.abs(z.y - a.y) < 40){ targetIndex = zi; break; }
+      }
+      if(targetIndex >= 0){
+        a.inCombat = true;
+        const z = zombies[targetIndex];
+        if(a.cd<=0){
+          z.hp -= a.atk; a.cd = a.atkSpeed;
+          if(z.hp<=0){
+            zombies.splice(targetIndex,1);
+            souls++; score++; soulsEl.textContent=souls; scoreEl.textContent=score; beep(880,60,0.04);
+          }
+        }
+        if(Math.abs(z.x - a.x) < (z.rad + 10)){ a.hp -= 12*dt; if(a.hp<=0){ sworders.splice(si,1); beep(240,110,0.06); } }
+      } else { a.inCombat = false; }
+    }
+
+    for(const s of shooters){
+      s.cd -= dt;
+      if(s.cd<=0){
+        let target = null, bestD = 1e9;
+        for(const z of zombies){
+          const dx = s.x - z.x;
+          if(dx>0 && dx<bestD){ bestD = dx; target = z; }
+        }
+        if(target){
+          const sx = s.x+28, sy = s.y-30;
+          const dx = target.x - sx, dy = target.y - sy;
+          const len = Math.hypot(dx,dy) || 1;
+          const v = 520;
+          bullets.push({x:sx, y:sy, vx:(dx/len)*v, vy:(dy/len)*v, ally:true, dmg:1});
+          s.cd = s.cdMax || 0.35;
+        } else {
+          s.cd = 0.08;
+        }
+      }
+    }
+
+    for(let zi=zombies.length-1; zi>=0; zi--){
+      const z = zombies[zi];
+      for(let bi=bullets.length-1; bi>=0; bi--){
+        const b = bullets[bi];
+        if(dist2(b.x,b.y,z.x,z.y) < (z.rad+6)*(z.rad+6)){
+          z.hp -= b.dmg||1; bullets.splice(bi,1);
+          if(z.hp<=0){
+            zombies.splice(zi,1);
+            souls++; score++; soulsEl.textContent=souls; scoreEl.textContent=score; beep(820,60,0.05);
+          }
+          break;
+        }
+      }
+    }
+
+    for(let i=zombies.length-1;i>=0;i--){
+      const z=zombies[i];
+      if(z.x + z.rad >= wallX){
+        zombies.splice(i,1);
+        wallHP = clamp(wallHP - 25, 0, 400);
+        hpEl.textContent = wallHP;
+        beep(220,110,0.07);
+        if(wallHP<=0){ endGame(); return; }
+      }
+    }
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    drawBackground(); drawWall();
+    drawPlayer(); drawAllies(); drawZombies(); drawBullets();
+  }
+
+  function shootTowards(tx, ty){
+    if(!running || gameOver) return;
+    if(player.cd>0) return;
+    player.cd = player.cdMax;
+    const sx = player.x + 28, sy = player.y - 28;
+    const dx = tx - sx, dy = ty - sy;
+    const len = Math.hypot(dx,dy)||1;
+    const v = 720;
+    bullets.push({x:sx,y:sy,vx:(dx/len)*v,vy:(dy/len)*v,ally:false,dmg:1});
+    beep(700,60,0.04);
+  }
+
+  function buySworder(){
+    if(souls < 5) return;
+    souls -= 5; soulsEl.textContent = souls;
+    sworders.push({ x: wallX - 10, y: groundY, hp: 80, maxHp: 80, speed:-110, range: 36, atk: 2, atkSpeed: 0.28, cd:0, inCombat:false });
+    beep(600,60,0.04);
+  }
+
+  function buyShooter(){
+    if(souls < 10) return;
+    souls -= 10; soulsEl.textContent = souls;
+    shooters.push({ x: wallX + 18 + Math.random()*28, y: player.y + (Math.random()<0.5? -6 : 6), cd:0, cdMax:0.30 });
+    beep(640,60,0.04);
+  }
+
+  function endGame(){ running=false; gameOver=true; ov.style.display='flex'; }
+  function restart(){
+    running=true; gameOver=false;
+    souls=0; score=0; wallHP=400; wave=1;
+    soulsEl.textContent=souls; scoreEl.textContent=score; hpEl.textContent=wallHP; waveEl.textContent=wave;
+    zombies.length=0; bullets.length=0; sworders.length=0; shooters.length=0;
+    spawnTimer=1.6; ov.style.display='none';
+  }
+
+  function canvasCoords(e){ const r=cvs.getBoundingClientRect(); return {x:(e.clientX-r.left)*(cvs.width/r.width), y:(e.clientY-r.top)*(cvs.height/r.height)}; }
+  cvs.addEventListener('mousemove', e=>{ const p=canvasCoords(e); player.aimX=p.x; player.aimY=p.y; });
+  cvs.addEventListener('mousedown', e=>{ const p=canvasCoords(e); player.aimX=p.x; player.aimY=p.y; shootTowards(p.x,p.y); });
+  cvs.addEventListener('touchstart', e=>{ e.preventDefault(); const t=e.changedTouches[0]; const p=canvasCoords(t); player.aimX=p.x; player.aimY=p.y; shootTowards(p.x,p.y); }, {passive:false});
+  window.addEventListener('keydown', e=>{ const k=e.key.toLowerCase(); if(k==='1') buySworder(); if(k==='2') buyShooter(); if(k===' '){ e.preventDefault(); shootTowards(player.aimX, player.aimY); } });
+  btnSword.onclick = buySworder; btnShooter.onclick = buyShooter; again.onclick = restart;
+
+  btnDownload.addEventListener('click', ()=>{
+    const blob = new Blob([document.documentElement.outerHTML], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='zid-zombi-fix.html';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
+
+  function tick(ts){
+    if(!t0) t0 = ts;
+    const dt = Math.min(0.033, (ts - t0)/1000); t0 = ts;
+    if(running && !gameOver) update(dt);
+    render();
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ro"><head></head><body contenteditable="false">
+The content of the body element is displayed in your browser.
+
+
+
+
+
+
+    <meta charset="UTF-8">
+    <title>Cyber Rider 3D - Ship Control</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; touch-action: none; }
+        canvas { display: block; }
+        #ui {
+            position: absolute; top: 25px; left: 25px;
+            font-size: 30px; font-weight: bold; color: #00f2ff;
+            text-shadow: 0 0 15px #00f2ff; pointer-events: none;
+        }
+        #dl-btn {
+            position: absolute; top: 25px; right: 25px;
+            padding: 12px 24px; background: #27ae60; color: white;
+            border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+        }
+        #game-over {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9); padding: 50px; text-align: center;
+            border: 3px solid #00f2ff; display: none; border-radius: 20px; box-shadow: 0 0 50px #00f2ff;
+        }
+        .btn-restart {
+            padding: 15px 35px; background: #00f2ff; color: #000;
+            border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 20px; font-size: 20px;
+        }
+    </style>
+
+
+
+    <button id="dl-btn" onclick="downloadGame()">📥 DESCARCĂ</button>
+    <div id="ui">VITEZĂ: <span id="score">202</span> km/h</div>
+
+    <canvas id="gameCanvas" width="820" height="892"></canvas>
+
+    <div id="game-over" style="display: none;">
+        <h1 style="color:#00f2ff; font-size: 50px;">BOOM!</h1>
+        <p style="color:white; font-size: 24px;">Ai rezistat <span id="finalScore">64</span> secunde</p>
+        <button class="btn-restart" onclick="resetGame()">ZBOR NOU</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height, centerX, centerY;
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            centerX = width / 2;
+            centerY = height / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let score = 0;
+        let gameActive = true;
+        let speed = 0.015;
+        let shipAngle = 0; // Unghiul navei tale
+        let obstacles = [];
+        const segments = 8; // Tunel octogonal pentru claritate maximă
+        const tunnelRadius = 280;
+
+        function spawnObstacle() {
+            if (!gameActive) return;
+            obstacles.push({
+                slot: Math.floor(Math.random() * segments), // Alege unul din cele 8 sectoare
+                z: 15, 
+                color: '#ff0055'
+            });
+            setTimeout(spawnObstacle, Math.max(200, 900 - score/2));
+        }
+
+        function update() {
+            if (!gameActive) return;
+
+            score += 1;
+            document.getElementById('score').innerText = Math.floor(score / 5);
+            speed += 0.000008;
+
+            obstacles.forEach((obs, index) => {
+                obs.z -= speed * 15;
+
+                // Verificare coliziune
+                // Calculăm unghiul centrului sectorului obstacolului
+                let obsAngle = obs.slot * (Math.PI * 2 / segments);
+                
+                if (obs.z < 0.2 && obs.z > 0.05) {
+                    let diff = Math.abs(shipAngle - obsAngle);
+                    if (diff > Math.PI) diff = Math.PI * 2 - diff;
+                    
+                    // Dacă nava e în același sector cu obstacolul
+                    if (diff < (Math.PI / segments)) {
+                        endGame();
+                    }
+                }
+
+                if (obs.z < 0) obstacles.splice(index, 1);
+            });
+        }
+
+        function draw() {
+            // Fundal negru adânc
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, width, height);
+
+            // Desenăm structura fixa a tunelului
+            ctx.strokeStyle = '#112233';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < segments; i++) {
+                let ang = i * (Math.PI * 2 / segments);
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(centerX + Math.cos(ang) * 2000, centerY + Math.sin(ang) * 2000);
+                ctx.stroke();
+            }
+
+            // Inele de adâncime (fixe)
+            for(let i=1; i<6; i++) {
+                let r = ( (score * 0.1 + i * 20) % 100 ) / 100 * 1500;
+                ctx.strokeStyle = `rgba(0, 242, 255, ${0.1})`;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // Obstacole (Vin spre tine pe traiectorii fixe)
+            obstacles.forEach(obs => {
+                const angle = obs.slot * (Math.PI * 2 / segments);
+                const scale = 1 / obs.z;
+                if (scale < 0.1) return;
+
+                const r1 = tunnelRadius * scale * 0.1;
+                const r2 = tunnelRadius * (scale + 0.8) * 0.1;
+                const slice = (Math.PI * 2 / segments) * 0.9;
+
+                ctx.fillStyle = obs.color;
+                ctx.shadowBlur = scale > 3 ? 20 : 0;
+                ctx.shadowColor = obs.color;
+                
+                ctx.beginPath();
+                ctx.moveTo(centerX + Math.cos(angle - slice/2) * r1, centerY + Math.sin(angle - slice/2) * r1);
+                ctx.lineTo(centerX + Math.cos(angle + slice/2) * r1, centerY + Math.sin(angle + slice/2) * r1);
+                ctx.lineTo(centerX + Math.cos(angle + slice/2) * r2, centerY + Math.sin(angle + slice/2) * r2);
+                ctx.lineTo(centerX + Math.cos(angle - slice/2) * r2, centerY + Math.sin(angle - slice/2) * r2);
+                ctx.closePath();
+                ctx.fill();
+
+                // Margine accentuată
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = Math.min(3, scale/3);
+                ctx.stroke();
+            });
+
+            // PERSONAJUL (Nava ta) - Se mișcă pe un cerc
+            ctx.save();
+            ctx.translate(centerX + Math.cos(shipAngle) * 200, centerY + Math.sin(shipAngle) * 200);
+            ctx.rotate(shipAngle + Math.PI/2);
+            
+            // Desenăm nava ca un triunghi neon
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#00f2ff";
+            ctx.fillStyle = "#00f2ff";
+            ctx.beginPath();
+            ctx.moveTo(0, -20);
+            ctx.lineTo(-15, 15);
+            ctx.lineTo(15, 15);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Geam cabină
+            ctx.fillStyle = "white";
+            ctx.fillRect(-5, -5, 10, 5);
+            ctx.restore();
+
+            if (gameActive) requestAnimationFrame(() => { update(); draw(); });
+        }
+
+        // CONTROL: Acum mouse-ul mișcă doar nava (shipAngle)
+        window.addEventListener('mousemove', (e) => {
+            // Calculăm unghiul mouse-ului față de centrul ecranului
+            const dx = e.clientX - centerX;
+            const dy = e.clientY - centerY;
+            shipAngle = Math.atan2(dy, dx);
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            const dx = e.touches[0].clientX - centerX;
+            const dy = e.touches[0].clientY - centerY;
+            shipAngle = Math.atan2(dy, dx);
+            e.preventDefault();
+        }, {passive: false});
+
+        function endGame() {
+            gameActive = false;
+            document.getElementById('game-over').style.display = 'block';
+            document.getElementById('finalScore').innerText = Math.floor(score / 5);
+        }
+
+        function resetGame() {
+            score = 0; speed = 0.015; obstacles = []; gameActive = true;
+            document.getElementById('game-over').style.display = 'none';
+            spawnObstacle();
+            draw();
+        }
+
+        function downloadGame() {
+            const html = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+            const blob = new Blob([html], {type: 'text/html'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'CyberRider_Fixed.html';
+            a.click();
+        }
+
+        spawnObstacle();
+        draw();
+    </script>
+
+</body></html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ro"><head></head><body contenteditable="false">
+    <meta charset="UTF-8">
+    <title>Audio Generator v18 - Final Fixed</title>
+    <style>
+        body { background: #000; color: #00ff41; font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; text-transform: uppercase; }
+        .panel { border: 4px solid #00ff41; background: #0a0a0a; padding: 30px; width: 600px; box-shadow: 0 0 50px #00ff41; text-align: center; border-radius: 15px; }
+        h1 { font-size: 1.2rem; text-shadow: 0 0 15px #00ff41; border-bottom: 2px solid #00ff41; padding-bottom: 10px; margin-top: 0; }
+        textarea { width: 100%; height: 80px; background: #000; color: #fff; border: 1px solid #00ff41; padding: 10px; font-size: 1.3rem; margin: 20px 0; box-sizing: border-box; outline: none; }
+        .row { display: grid; grid-template-columns: 1fr; gap: 15px; text-align: left; margin-bottom: 20px; }
+        label { font-size: 0.7rem; color: #00ff41; margin-bottom: 5px; display: block; }
+        select, input[type="range"] { width: 100%; background: #111; color: #fff; border: 1px solid #00ff41; padding: 12px; cursor: pointer; font-weight: bold; box-sizing: border-box; }
+        .btn-play { background: #00ff41; color: #000; padding: 20px; font-size: 1.5rem; width: 100%; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; margin-bottom: 10px; }
+        .btn-play:hover { background: #fff; box-shadow: 0 0 25px #fff; }
+        .btn-dl { background: #111; color: #00ff41; border: 1px solid #00ff41; padding: 10px; width: 100%; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+        #status { font-size: 0.8rem; margin-top: 15px; color: #00ff41; font-weight: bold; text-shadow: 0 0 5px #00ff41; }
+    </style>
+
+<div class="panel">
+    <h1>🔊 GENERATOR v18 - TOATE STILURILE FUNCȚIONALE 🔊</h1>
+    
+    <textarea id="msg">SISTEM REPARAT INTEGRAL. TOATE STILURILE SUNT ACTIVE ȘI PUTERNICE!</textarea>
+
+    <div class="row">
+        <div>
+            <label>ALEGE MUZICA (FIECARE FUNCȚIONEAZĂ DIFERIT):</label>
+            <select id="style-select">
+                <option value="none">❌ FĂRĂ MUZICĂ</option>
+                <option value="phonk_king">🌀 PHONK LEGEND (COWBELL)</option>
+                <option value="hard_bass">🥁 RUSSIAN HARD BASS (LOUD)</option>
+                <option value="trap_glitch">🏚️ TRAP DARK GLITCH</option>
+                <option value="drill_uk">🔪 DRILL UK (SLIDE BASS)</option>
+                <option value="techno_berlin">🏭 INDUSTRIAL TECHNO (HEAVY)</option>
+                <option value="cyber_overdrive">🤖 CYBERPUNK 2077 STYLE</option>
+                <option value="dubstep_wub">🐲 DUBSTEP MONSTER</option>
+                <option value="retro_boss">🕹️ 8-BIT BOSS FIGHT</option>
+                <option value="rave_party">🚀 90S RAVE EXTREME</option>
+                <option value="horror_void">👻 THE VOID (SCARY LOUD)</option>
+                <option value="epic_war">⚔️ EPIC WAR DRUMS</option>
+            </select>
+        </div>
+        <div>
+            <label>VOCE ȘI VITEZĂ:</label>
+            <select id="voice-list"><option value="0">[RU-RU] - Microsoft Irina - Russian (Russia)</option><option value="1">[EN-GB] - Microsoft Hazel - English (United Kingdom)</option><option value="2">[EN-GB] - Microsoft Susan - English (United Kingdom)</option><option value="3">[EN-US] - Microsoft David - English (United States)</option><option value="4">[EN-US] - Microsoft Mark - English (United States)</option><option value="5">[EN-US] - Microsoft Zira - English (United States)</option><option value="6">[RO-RO] - Microsoft Andrei - Romanian (Romania)</option><option value="7">[EN-GB] - Microsoft George - English (United Kingdom)</option><option value="8">[RU-RU] - Microsoft Pavel - Russian (Russia)</option><option value="9">[EN-US] - Microsoft Zira Desktop - English (United States)</option><option value="10">[EN-US] - Microsoft David Desktop - English (United States)</option><option value="11">[EN-GB] - Microsoft Hazel Desktop - English (Great Britain)</option><option value="12">[RU-RU] - Microsoft Irina Desktop - Russian</option></select>
+            <input type="range" id="rate-slider" min="0.5" max="2.5" step="0.1" value="1" style="margin-top:10px;">
+        </div>
+    </div>
+
+    <button class="btn-play" id="start-btn">🔥 LANSARE AUDIO 🔥</button>
+    <button class="btn-dl" id="dl-btn">💾 DOWNLOAD VERSIUNE REPARATĂ</button>
+    <div id="status">SISTEM GATA</div>
+</div>
+
+<script>
+    const synth = window.speechSynthesis;
+    let audioCtx = null;
+    let musicLoop = null;
+    let masterGain = null;
+    let beat = 0;
+
+    function loadVoices() {
+        const voices = synth.getVoices();
+        document.getElementById('voice-list').innerHTML = voices.map((v, i) => 
+            `<option value="${i}">[${v.lang.toUpperCase()}] - ${v.name}</option>`
+        ).join('');
+    }
+    loadVoices();
+    if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
+
+    // Funcția Universală de Generare Sunet - Reparată pentru Volum și Stabilitate
+    function triggerSound(type, freq, duration, vol, slide = 0) {
+        if (!audioCtx || audioCtx.state === 'suspended') return;
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        if (slide !== 0) {
+            osc.frequency.exponentialRampToValueAtTime(slide, audioCtx.currentTime + duration);
+        }
+        
+        g.gain.setValueAtTime(vol * 0.8, audioCtx.currentTime); // Volum egalizat
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        
+        osc.connect(g).connect(masterGain);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function playInternalMusic(style) {
+        if (style === 'none') return;
+        
+        // Inițializare sigură AudioContext
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 1.0; // Control master
+        masterGain.connect(audioCtx.destination);
+        
+        beat = 0;
+        let tempo = 140;
+        if (style === 'hard_bass' || style === 'rave_party') tempo = 120;
+        if (style === 'epic_war') tempo = 200;
+
+        musicLoop = setInterval(() => {
+            const now = audioCtx.currentTime;
+
+            // --- STRATUL DE BAZĂ (TOBE / BASS) - Toate stilurile au acum Kick ---
+            if (beat % 2 === 0) {
+                if (style === 'hard_bass' || style === 'techno_berlin') triggerSound('square', 55, 0.2, 0.9, 30);
+                else if (style === 'trap_glitch' || style === 'drill_uk') triggerSound('sine', 45, 0.4, 1.2, 20);
+                else if (style === 'epic_war') triggerSound('sine', 80, 0.3, 1.5, 10);
+                else triggerSound('sine', 60, 0.15, 0.8, 20);
+            }
+
+            // --- LOGICA SPECIFICĂ PENTRU FIECARE STIL (FIXED) ---
+            switch(style) {
+                case 'phonk_king':
+                    const pNotes = [440, 440, 523, 392, 440, 659, 587, 523];
+                    triggerSound('triangle', pNotes[beat % 8], 0.2, 0.7);
+                    break;
+                case 'hard_bass':
+                    triggerSound('sawtooth', 80, 0.1, 0.6);
+                    break;
+                case 'trap_glitch':
+                    if (beat % 3 === 0) triggerSound('sawtooth', 1500, 0.05, 0.2);
+                    triggerSound('square', 40, 0.3, 0.6);
+                    break;
+                case 'drill_uk':
+                    if (beat === 2 || beat === 6) triggerSound('sine', 90, 0.6, 1.0, 35);
+                    break;
+                case 'techno_berlin':
+                    triggerSound('square', 40, 0.1, 0.8);
+                    if (beat % 2 !== 0) triggerSound('triangle', 800, 0.05, 0.2);
+                    break;
+                case 'cyber_overdrive':
+                    triggerSound('sawtooth', 60 + (Math.random() * 50), 0.2, 0.8);
+                    if (beat % 4 === 0) triggerSound('square', 120, 0.2, 0.5);
+                    break;
+                case 'dubstep_wub':
+                    triggerSound('sawtooth', 40, 0.3, 1.2, 400);
+                    break;
+                case 'retro_boss':
+                    const rNotes = [300, 450, 600, 350];
+                    triggerSound('square', rNotes[beat % 4], 0.1, 0.5);
+                    break;
+                case 'rave_party':
+                    const rvNotes = [440, 880, 660, 990];
+                    triggerSound('sawtooth', rvNotes[beat % 4], 0.15, 0.7);
+                    break;
+                case 'horror_void':
+                    triggerSound('sine', 100 + Math.sin(beat) * 10, 0.8, 1.0);
+                    break;
+                case 'epic_war':
+                    if (beat % 4 === 0) triggerSound('sawtooth', 50, 0.5, 1.0);
+                    break;
+            }
+
+            beat = (beat + 1) % 8;
+        }, tempo);
+    }
+
+    document.getElementById('start-btn').onclick = () => {
+        synth.cancel();
+        if (musicLoop) clearInterval(musicLoop);
+        const style = document.getElementById('style-select').value;
+        
+        // Pornim muzica
+        playInternalMusic(style);
+
+        // Pornim vocea
+        const utter = new SpeechSynthesisUtterance(document.getElementById('msg').value);
+        const voices = synth.getVoices();
+        if(voices.length > 0) utter.voice = voices[document.getElementById('voice-list').value];
+        utter.rate = document.getElementById('rate-slider').value;
+
+        utter.onend = () => {
+            if (musicLoop) clearInterval(musicLoop);
+            if (audioCtx) audioCtx.close();
+            document.getElementById('status').innerText = "SISTEM GATA";
+        };
+
+        synth.speak(utter);
+        document.getElementById('status').innerText = "► RULARE ACTIVĂ: " + style.toUpperCase();
+    };
+
+    document.getElementById('dl-btn').onclick = () => {
+        const code = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+        const blob = new Blob([code], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'Audio_Generator_v18_FINAL.html';
+        a.click();
+    };
+</script>
+</body></html>

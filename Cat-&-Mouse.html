@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motanul & Șoarecele – Infinit (Download Ready)</title>
+<style>
+  :root{ --ink:#eaf2ff; --hud:#0b132bcc; --hudb:#24345a; }
+  html,body{margin:0;height:100%;background:#0b1020;font-family:system-ui,Segoe UI,Arial}
+  #wrap{max-width:1000px;margin:10px auto;padding:0 8px}
+  #hud{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .pill{background:var(--hud);border:1px solid var(--hudb);color:var(--ink);padding:6px 10px;border-radius:10px;font-weight:800}
+  #dl{appearance:none;border:1px solid #2a3a62;background:linear-gradient(180deg,#1b2749,#0f1a2b);color:var(--ink);padding:8px 12px;border-radius:10px;font-weight:800;cursor:pointer}
+  canvas{display:block;width:100%;height:auto;background:#0a1425;border-radius:12px}
+  #overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center}
+  #card{background:#0b1024cc;color:#eaf2ff;border:1px solid #3a4bb3;padding:18px 22px;border-radius:14px;text-align:center;max-width:min(520px,92%)}
+  #card h2{margin:0 0 10px;color:#ffd166}
+  #card .tip{opacity:.9}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="pill">🏠 Cameră: <b id="roomName">–</b></div>
+    <div class="pill">🏃 Dist. până la șoarece: <b id="dist">–</b></div>
+    <div class="pill">🎮 A/D sau ←/→, Space pentru săritură</div>
+    <button id="dl">⬇️ Download</button>
+  </div>
+  <canvas id="cv" width="960" height="540"></canvas>
+</div>
+
+<div id="overlay">
+  <div id="card">
+    <h2 id="ovTitle">Ai prins șoarecele! 😺</h2>
+    <div class="tip">Click / Space pentru a continua (dificultatea crește)</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const FLOOR = H - 88;
+  const G = 0.7;
+
+  const roomEl = document.getElementById('roomName');
+  const distEl = document.getElementById('dist');
+  const overlay = document.getElementById('overlay');
+  const btnDL = document.getElementById('dl');
+
+  // Teme camere
+  const THEMES = [
+    { name:'Bucătărie', bg1:'#0b1528', bg2:'#0a1322', deco:'🍳', plat:'#22324a', obj:'#2b3f62' },
+    { name:'Sufragerie', bg1:'#0a1322', bg2:'#07101b', deco:'🛋️', plat:'#243a54', obj:'#314768' },
+    { name:'Dormitor',   bg1:'#0a1220', bg2:'#08101a', deco:'🛏️', plat:'#2b3f62', obj:'#37537a' },
+  ];
+
+  // Actori
+  const cat   = makeActor('#ffb86b', 36, 32, 4.4, 13.8);
+  const mouse = makeActor('#a0ffb0', 26, 20, 3.9, 11.8);
+  function makeActor(color,w,h,speed,jump){ return {x:80,y:FLOOR-h,w,h,vy:0,onGround:false,color,speed,jump}; }
+
+  // Segmente infinite
+  const SEG_W = 900;
+  let segments = [];
+  let nextSegX = 0;
+  let themeIndex = 0;
+  let difficulty = 1;
+
+  // Obstacole
+  function newSegment(x){
+    const theme = THEMES[themeIndex % THEMES.length];
+    themeIndex++;
+    const density = 3 + Math.min(6, Math.floor(difficulty*0.8));
+    const plats = [];
+    const moves = [];
+    const springs = [];
+
+    plats.push(rect(x, FLOOR, SEG_W, 16, theme.plat));
+    for(let i=0;i<density;i++){
+      const px = x + 120 + i * (SEG_W / (density+0.3));
+      const py = FLOOR - (70 + (Math.random()*120|0));
+      const pw = 130 + (Math.random()*110|0);
+      const ph = 14;
+      plats.push(rect(px, py, pw, ph, theme.obj));
+
+      if(Math.random() < 0.45){
+        const mx = px + 20;
+        const my = FLOOR - 18;
+        const mw = 28, mh = 18;
+        const range = 60 + (Math.random()*80|0);
+        const speed = 1.2 + Math.min(2.4, 0.2*difficulty);
+        moves.push({x:mx, y:my, w:mw, h:mh, color:'#ff8b8b', left:mx-range, right:mx+range, dir:1, speed});
+      }
+      if(Math.random() < 0.35){
+        springs.push({x: px + (pw*0.5|0)-12, y: py-12, w:24, h:12, color:'#ffd166', power: 15 + Math.min(4, difficulty)});
+      }
+    }
+    return { x, themeId:(themeIndex-1)%THEMES.length, plats, moves, springs };
+  }
+  function rect(x,y,w,h,color){ return {x,y,w,h,color}; }
+
+  // Cameră & UI
+  let cameraX = 0;
+  let keys = {};
+  let caughtOverlay = false;
+  function refreshRoomName(){
+    const theme = THEMES[ segments[0] ? segments[0].themeId : 0 ];
+    roomEl.textContent = theme.name;
+  }
+
+  // Input
+  addEventListener('keydown', e=>{
+    if(e.repeat) return;
+    if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left = true;
+    if(e.code==='ArrowRight'||e.code==='KeyD') keys.right = true;
+    if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space'){
+      if(cat.onGround){ cat.vy = -cat.jump; cat.onGround=false; }
+      if(caughtOverlay){ continueRun(); }
+    }
+  });
+  addEventListener('keyup', e=>{
+    if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left = false;
+    if(e.code==='ArrowRight'||e.code==='KeyD') keys.right = false;
+  });
+  addEventListener('mousedown', ()=>{
+    if(!caughtOverlay){
+      if(cat.onGround){ cat.vy = -cat.jump; cat.onGround=false; }
+    } else continueRun();
+  });
+
+  // AI șoarece
+  function mouseAI(){
+    const plats = segments.flatMap(s=>s.plats);
+    const aheadBox = {x:mouse.x+mouse.w, y:mouse.y+mouse.h-14, w:26, h:14};
+    const groundAhead = groundUnder(mouse.x+mouse.w+10, plats);
+    const obstacleAhead = intersectsAny(aheadBox, plats);
+    const movingHits = segments.some(s=>s.moves.some(m=> aabb(mouse.x+mouse.w, mouse.y, 10, mouse.h, m.x, m.y, m.w, m.h)));
+    if(mouse.onGround && (!groundAhead || obstacleAhead || movingHits)){
+      mouse.vy = -mouse.jump; mouse.onGround = false;
+    }
+    mouse.x += mouse.speed;
+  }
+
+  // Fizică & coliziuni
+  function physics(actor){
+    actor.vy += G;
+    if(actor===cat){
+      let vx=0; if(keys.left) vx -= cat.speed; if(keys.right) vx += cat.speed; actor.x += vx;
+    }
+    actor.y += actor.vy;
+    actor.onGround = false;
+    for(const s of segments){
+      for(const p of s.plats)  collideTopSide(actor, p);
+      for(const m of s.moves)  collideTopSide(actor, m);
+      for(const sp of s.springs){
+        if(aabb(actor.x, actor.y, actor.w, actor.h, sp.x, sp.y, sp.w, sp.h)){
+          const prevY = actor.y - actor.vy;
+          if(prevY + actor.h <= sp.y + 2){ actor.y = sp.y - actor.h; actor.vy = -sp.power; actor.onGround = false; }
+          else {
+            if(actor.x + actor.w/2 < sp.x + sp.w/2) actor.x = sp.x - actor.w - .5;
+            else actor.x = sp.x + sp.w + .5;
+          }
+        }
+      }
+    }
+    const leftLimit = cameraX - 60; if(actor.x < leftLimit) actor.x = leftLimit;
+    if(actor.y > H + 200){ actor.y = FLOOR - actor.h; actor.vy = 0; actor.onGround = true; }
+  }
+  function collideTopSide(a, b){
+    if(!aabb(a.x, a.y, a.w, a.h, b.x, b.y, b.w, b.h)) return;
+    const prevY = a.y - a.vy;
+    if(prevY + a.h <= b.y + 2){ a.y = b.y - a.h; a.vy = 0; a.onGround = true; }
+    else { if(a.x + a.w/2 < b.x + b.w/2) a.x = b.x - a.w - .5; else a.x = b.x + b.w + .5; }
+  }
+
+  // Intersecții
+  function aabb(x,y,w,h, X,Y,W,H){ return x < X+W && x+w > X && y < Y+H && y+h > Y; }
+  function intersectsAny(box, arr){ return arr.some(p=>aabb(box.x, box.y, box.w, box.h, p.x,p.y,p.w,p.h)); }
+  function groundUnder(x, plats){
+    const near = plats.filter(p=> x>=p.x && x<=p.x+p.w);
+    return near.some(p=> Math.abs(p.y - (mouse.y + mouse.h)) < 40 || p.y >= mouse.y);
+  }
+
+  // Segmente: generare și curățare
+  function ensureSegments(){
+    while(segments.length===0 || segments[segments.length-1].x < cameraX + W + 200){
+      const seg = newSegment(nextSegX); segments.push(seg); nextSegX += SEG_W;
+    }
+    while(segments.length && segments[0].x + SEG_W < cameraX - 200){ segments.shift(); }
+    refreshRoomName();
+  }
+
+  // Obstacole mobile
+  function updateMoving(dt){
+    for(const s of segments){
+      for(const m of s.moves){
+        m.x += m.dir * m.speed * (1 + 0.03*difficulty);
+        if(m.x < m.left){ m.x = m.left; m.dir = 1; }
+        if(m.x + m.w > m.right){ m.x = m.right - m.w; m.dir = -1; }
+      }
+    }
+  }
+
+  // Cameră
+  function updateCamera(){
+    const target = cat.x - W*0.35;
+    cameraX += (target - cameraX) * 0.12;
+    if(cameraX < 0) cameraX = 0;
+  }
+
+  // Captură & dificultate
+  function checkCatch(){
+    const dx = (mouse.x + mouse.w/2) - (cat.x + cat.w/2);
+    const dy = (mouse.y + mouse.h/2) - (cat.y + cat.h/2);
+    const d = Math.hypot(dx,dy);
+    distEl.textContent = Math.max(0, (d|0)) + ' px';
+    if(d < 28){ overlay.style.display = 'flex'; caughtOverlay = true; }
+  }
+  function continueRun(){
+    overlay.style.display = 'none'; caughtOverlay = false;
+    difficulty += 1;
+    mouse.x = cat.x + 260; mouse.y = FLOOR - mouse.h; mouse.vy = 0; mouse.onGround = true;
+    cat.speed   = Math.min(6.0, 4.4 + 0.08*difficulty);
+    mouse.speed = Math.min(5.6, 3.9 + 0.06*difficulty);
+  }
+
+  // Download self
+  btnDL.addEventListener('click', ()=>{
+    const blob = new Blob([document.documentElement.outerHTML], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='motanul_si_soarecele_infinit.html';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 800);
+  });
+
+  // Loop
+  let last = 0;
+  function loop(ts){
+    if(!last) last = ts;
+    const dt = Math.min(50, ts - last) / 16.666; last = ts;
+    ensureSegments();
+    if(!caughtOverlay){
+      mouseAI();
+      physics(mouse);
+      physics(cat);
+      updateMoving(dt);
+      updateCamera();
+      checkCatch();
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // Desen
+  function draw(){
+    const theme = THEMES[ segments[0] ? segments[0].themeId : 0 ];
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0, theme.bg1); g.addColorStop(1, theme.bg2);
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+    for(let i=0;i<60;i++){
+      const x = (i*23 + (performance.now()*0.03)%W) % W;
+      const y = 30 + (i*37) % (H-120);
+      ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(x,y,2,2);
+    }
+    for(const s of segments){
+      ctx.fillStyle = '#0e1a2c'; fillWorld(s.x, FLOOR, SEG_W, H-FLOOR);
+      ctx.font = '22px system-ui, Segoe UI Emoji'; ctx.globalAlpha = 0.18;
+      for(let i=0;i<4;i++){ const xx = s.x + 120 + i*180; textWorld(THEMES[s.themeId].deco, xx, FLOOR - 190); }
+      ctx.globalAlpha = 1;
+      for(const p of s.plats){ ctx.fillStyle = p.color; fillWorld(p.x,p.y,p.w,p.h,6); }
+      for(const sp of s.springs){ ctx.fillStyle = sp.color; fillWorld(sp.x,sp.y,sp.w,sp.h,4); ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=2; strokeWorld(sp.x,sp.y,sp.w,sp.h); }
+      for(const m of s.moves){ ctx.fillStyle = m.color; fillWorld(m.x,m.y,m.w,m.h,6); ctx.fillStyle='rgba(0,0,0,0.25)'; fillWorld(m.x+4,m.y+4,m.w-8,3,2); }
+    }
+    ctx.fillStyle = mouse.color; fillWorld(mouse.x, mouse.y, mouse.w, mouse.h, 6);
+    ctx.fillStyle = cat.color;   fillWorld(cat.x, cat.y, cat.w, cat.h, 8);
+    ctx.fillStyle = '#ffd6a0';   fillWorld(cat.x+6, cat.y-6, 8, 6, 2); fillWorld(cat.x+cat.w-14, cat.y-6, 8, 6, 2);
+  }
+
+  // Helpers desen
+  function toScreenX(x){ return Math.round(x - cameraX); }
+  function fillWorld(x,y,w,h,r=0){
+    const sx = toScreenX(x), sy = Math.round(y);
+    if(r<=0){ ctx.fillRect(sx,sy,w,h); return; }
+    ctx.beginPath();
+    ctx.moveTo(sx+r, sy);
+    ctx.arcTo(sx+w, sy, sx+w, sy+h, r);
+    ctx.arcTo(sx+w, sy+h, sx, sy+h, r);
+    ctx.arcTo(sx, sy+h, sx, sy, r);
+    ctx.arcTo(sx, sy, sx+w, sy, r);
+    ctx.closePath(); ctx.fill();
+  }
+  function strokeWorld(x,y,w,h){ const sx = toScreenX(x), sy = Math.round(y); ctx.strokeRect(sx,sy,w,h); }
+  function textWorld(t,x,y){ const sx = toScreenX(x), sy = Math.round(y); ctx.fillText(t, sx, sy); }
+
+  // Start
+  for(let i=0;i<3;i++){ const s = newSegment(nextSegX); segments.push(s); nextSegX += SEG_W; }
+  refreshRoomName();
+  mouse.x = 180; cat.x = 80;
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

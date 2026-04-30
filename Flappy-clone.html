@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flappy Clone</title>
+<style>
+  :root{ --bg:#0b132b; --ink:#e6f1ff; --muted:#9fb3d9; --accent:#64b5ff; --pipe:#2ecc71; --pipeDark:#1e9e52; --ground:#20324f }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{display:grid;place-items:center;background:linear-gradient(180deg,#0b132b 0%,#0e1a39 100%);color:var(--ink);font-family:system-ui,Segoe UI,Roboto}
+  .wrap{width:min(92vw,560px)}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  h1{font-size:clamp(18px,4vw,22px);margin:0;color:#eaf2ff}
+  .hud{display:flex;gap:8px;flex-wrap:wrap}
+  .pill{background:#0f1d3a;border:1px solid #24345a;border-radius:999px;padding:6px 10px;display:flex;gap:6px;align-items:center;font-weight:700;color:#cfe1ff}
+  .panel{background:#0f1b36;border:1px solid #1e2c50;border-radius:12px;padding:8px;box-shadow:0 10px 28px rgba(0,0,0,.35)}
+  canvas{display:block;width:100%;height:auto;background:linear-gradient(180deg,#75c9ff 0%,#ade1ff 45%,#87d2ff 70%,#6bc1ff 100%);border-radius:10px}
+  .controls{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+  button{appearance:none;border:none;background:linear-gradient(180deg,#1b2749,#10182f);color:#eaf2ff;border:1px solid #2a3a62;padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:800}
+  button:active{transform:translateY(1px)}
+  .select{display:flex;gap:6px;align-items:center}
+  select{background:#0f1d3a;border:1px solid #2a3a62;color:#eaf2ff;border-radius:8px;padding:6px}
+  .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center}
+  .card{background:#0b1024cc;border:1px solid #3a4bb3;padding:18px 16px;border-radius:14px;max-width:min(520px,92%);text-align:center;color:#eaf2ff}
+  .big{font-size:40px;font-weight:900;letter-spacing:1px;color:#ffde6b}
+  .tip{opacity:.9;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Flappy Clone</h1>
+    <div class="hud">
+      <div class="pill">🏆 Record: <b id="best">0</b></div>
+      <div class="pill">🎯 Scor: <b id="score">0</b></div>
+      <div class="pill">⚙️ Dificultate: <b id="diffLbl">Normal</b></div>
+    </div>
+  </header>
+  <div class="panel" style="position:relative">
+    <canvas id="game" width="400" height="600" aria-label="Flappy canvas"></canvas>
+    <div class="overlay" id="ov">
+      <div class="card">
+        <div class="big" id="ovTitle">FLAPPY CLONE</div>
+        <p class="tip" id="ovSub">Apasă <b>Space</b> / <b>Click</b> / <b>Tap</b> pentru a zbura</p>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+          <button id="start">Începe</button>
+          <button id="again" style="display:none">Reîncearcă</button>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:12px;justify-content:center;align-items:center">
+          <div class="select">
+            <label for="diff">Dificultate</label>
+            <select id="diff">
+              <option value="easy">Ușor</option>
+              <option value="normal" selected>Normal</option>
+              <option value="hard">Greu</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="controls">
+    <button id="btnPause">Pauză</button>
+    <button id="btnMute">Sunet: ON</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const cvs = $('#game');
+  const ctx = cvs.getContext('2d');
+  const ov = $('#ov');
+  const ovTitle = $('#ovTitle');
+  const ovSub = $('#ovSub');
+  const startBtn = $('#start');
+  const againBtn = $('#again');
+  const diffSel = $('#diff');
+  const diffLbl = $('#diffLbl');
+  const bestLbl = $('#best');
+  const scoreLbl = $('#score');
+  const btnPause = $('#btnPause');
+  const btnMute = $('#btnMute');
+
+  // ====== Game Vars ======
+  let running = false, paused = false, died = false;
+  let score = 0, best = +localStorage.getItem('flappy_best')||0; bestLbl.textContent = best;
+  let t0 = 0; // time
+
+  // physics
+  const GRAV = 900; // px/s^2
+  const FLAP = -280; // velocity impulse
+
+  // bird
+  const bird = { x: 100, y: 300, r: 14, vy: 0, rot: 0 };
+
+  // pipes
+  let pipes = [];
+  let pipeTimer = 0;
+
+  // difficulty presets
+  const presets = {
+    easy:   { gap: 160, spacing: 1550, speed: 140 },
+    normal: { gap: 140, spacing: 1350, speed: 160 },
+    hard:   { gap: 120, spacing: 1200, speed: 185 },
+  };
+  let D = presets.normal; diffLbl.textContent = 'Normal';
+
+  // audio (beep)
+  let audioCtx, muted=false;
+  function bip(freq=800, ms=80, g=0.04){
+    if(muted) return; try{
+      audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+      const o=audioCtx.createOscillator(); const a=audioCtx.createGain();
+      o.type='square'; o.frequency.value=freq; o.connect(a); a.connect(audioCtx.destination);
+      a.gain.value=g; o.start(); setTimeout(()=>o.stop(), ms);
+    }catch(e){}
+  }
+
+  // helpers
+  function reset(){
+    bird.x = 100; bird.y = cvs.height/2; bird.vy = 0; bird.rot = 0;
+    pipes = []; score = 0; scoreLbl.textContent = score; pipeTimer=0;
+  }
+
+  function start(){ reset(); running = true; paused=false; died=false; ov.style.display='none'; t0=0; }
+  function gameOver(){ running=false; died=true; ov.style.display='flex'; againBtn.style.display='inline-block'; startBtn.style.display='none';
+    ovTitle.textContent='AI PIERDUT'; ovSub.innerHTML='Scor: <b>'+score+'</b>'; if(score>best){ best=score; localStorage.setItem('flappy_best', String(best)); bestLbl.textContent=best; }
+  }
+
+  // spawn one pipe pair
+  function spawnPipe(){
+    const gap = D.gap;
+    const margin=40;
+    const top = Math.random()*(cvs.height - 2*margin - gap) + margin;
+    const speed = D.speed; // px/s
+    pipes.push({ x: cvs.width+40, w: 60, topH: top, botY: top+gap, passed:false, speed });
+  }
+
+  // draw background elements
+  function drawScenery(dt){
+    // parallax clouds
+    ctx.save();
+    const t = performance.now()/1000;
+    for(let i=0;i<5;i++){
+      const x = (t*20 + i*120) % (cvs.width+200) - 200;
+      const y = 40 + (i%2)*30;
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.beginPath(); ctx.ellipse(cvs.width-x, y, 28, 18, 0, 0, Math.PI*2); ctx.fill();
+    }
+    // ground
+    ctx.fillStyle = 'rgba(32,50,79,0.9)';
+    ctx.fillRect(0, cvs.height-24, cvs.width, 24);
+    ctx.restore();
+  }
+
+  function drawBird(){
+    ctx.save();
+    ctx.translate(bird.x, bird.y);
+    ctx.rotate(bird.rot);
+    // body
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath(); ctx.ellipse(0,0, bird.r+2, bird.r, 0, 0, Math.PI*2); ctx.fill();
+    // wing
+    ctx.fillStyle = '#f7b801';
+    ctx.beginPath(); ctx.ellipse(-2,2, 8, 6, 0, 0, Math.PI*2); ctx.fill();
+    // eye
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(6,-4,5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(7,-4,2,0,Math.PI*2); ctx.fill();
+    // beak
+    ctx.fillStyle = '#ff9f1c';
+    ctx.beginPath(); ctx.moveTo(10,0); ctx.lineTo(20,4); ctx.lineTo(10,8); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPipes(dt){
+    ctx.save();
+    for(const p of pipes){
+      p.x -= p.speed * dt;
+      ctx.fillStyle = 'linear-gradient(180deg,#2ecc71,#1e9e52)';
+      // top
+      ctx.fillStyle = '#2ecc71';
+      ctx.fillRect(p.x, 0, p.w, p.topH);
+      ctx.fillStyle = '#1e9e52'; ctx.fillRect(p.x-2, p.topH-12, p.w+4, 12);
+      // bottom
+      ctx.fillStyle = '#2ecc71';
+      ctx.fillRect(p.x, p.botY, p.w, cvs.height - p.botY);
+      ctx.fillStyle = '#1e9e52'; ctx.fillRect(p.x-2, p.botY, p.w+4, 12);
+      // scoring
+      if(!p.passed && p.x + p.w < bird.x){ p.passed = true; score++; scoreLbl.textContent=score; bip(900,70,0.05); }
+    }
+    // remove offscreen
+    pipes = pipes.filter(p=> p.x + p.w > -60);
+    ctx.restore();
+  }
+
+  function collide(){
+    // floor / ceiling
+    if(bird.y + bird.r > cvs.height-24 || bird.y - bird.r < 0) return true;
+    // pipes (AABB vs circle approx)
+    for(const p of pipes){
+      // inside gap horizontally
+      const inX = bird.x + bird.r > p.x && bird.x - bird.r < p.x + p.w;
+      if(!inX) continue;
+      const hitTop = bird.y - bird.r < p.topH;
+      const hitBot = bird.y + bird.r > p.botY;
+      if(hitTop || hitBot) return true;
+    }
+    return false;
+  }
+
+  function physics(dt){
+    bird.vy += GRAV*dt; bird.y += bird.vy*dt;
+    // tilt
+    bird.rot = Math.max(-0.35, Math.min(0.8, bird.vy/300));
+  }
+
+  // main loop
+  function tick(ts){
+    if(!t0) t0 = ts; const dt = (ts - t0)/1000; t0 = ts;
+    ctx.clearRect(0,0,cvs.width,cvs.height);
+    drawScenery(dt);
+
+    if(running && !paused){
+      pipeTimer -= dt*1000;
+      if(pipeTimer <= 0){ pipeTimer = D.spacing; spawnPipe(); }
+      drawPipes(dt);
+      physics(dt);
+      if(collide()) { bip(220,160,0.08); return gameOver(); }
+    } else {
+      // draw stationary pipes
+      drawPipes(0);
+    }
+
+    drawBird();
+    requestAnimationFrame(tick);
+  }
+
+  // input
+  function flap(){ if(!running){ start(); } bird.vy = FLAP; bip(700,60,0.05); }
+  addEventListener('keydown', e=>{ if([' ','arrowup','w'].includes(e.key.toLowerCase())){ e.preventDefault(); flap(); } if(e.key.toLowerCase()==='p'){ togglePause(); }});
+  cvs.addEventListener('mousedown', flap);
+  cvs.addEventListener('touchstart', e=>{ e.preventDefault(); flap(); }, {passive:false});
+
+  function togglePause(){ if(!running || died) return; paused = !paused; btnPause.textContent = paused? 'Continuă':'Pauză'; if(!paused) bip(600,60,0.04); }
+  btnPause.onclick = togglePause;
+  btnMute.onclick = ()=>{ muted=!muted; btnMute.textContent = 'Sunet: ' + (muted? 'OFF':'ON'); };
+
+  // overlay buttons
+  startBtn.onclick = ()=>{ start(); };
+  againBtn.onclick = ()=>{ start(); };
+
+  diffSel.onchange = ()=>{
+    const val = diffSel.value; D = presets[val]; diffLbl.textContent = (val==='easy'?'Ușor':val==='hard'?'Greu':'Normal');
+    // refresh spawn timer so difficulty takes effect immediately
+    pipeTimer = 0; reset(); ov.style.display='flex'; startBtn.style.display='inline-block'; againBtn.style.display='none';
+    ovTitle.textContent='FLAPPY CLONE'; ovSub.innerHTML='Apasă <b>Space</b> / <b>Click</b> / <b>Tap</b> pentru a zbura';
+    running=false; died=false;
+  };
+
+  // initial state: show overlay
+  ov.style.display='flex';
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

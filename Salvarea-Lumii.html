@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>SAVANTUL GABI: ECHIPAMENT ACTIV</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        /* CRUCEA MINECRAFT */
+        #crosshair { 
+            position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; 
+            transform: translate(-50%, -50%); pointer-events: none; z-index: 1000;
+        }
+        #crosshair::before { content: ''; position: absolute; background: rgba(255,255,255,0.8); width: 2px; height: 20px; left: 9px; }
+        #crosshair::after { content: ''; position: absolute; background: rgba(255,255,255,0.8); height: 2px; width: 20px; top: 9px; }
+
+        /* INDICATOR OBIECT FOLOSIT */
+        #action-text {
+            position: absolute; top: 60%; left: 50%; transform: translateX(-50%);
+            color: #ffff00; font-weight: bold; font-size: 24px; text-shadow: 2px 2px #000;
+            z-index: 500; opacity: 0; transition: 0.2s;
+        }
+
+        #ui { position: absolute; top: 20px; left: 20px; color: white; z-index: 100; }
+        .bar-container { width: 200px; height: 10px; background: #222; border: 1px solid #555; margin: 5px 0; }
+        #energy-fill { width: 100%; height: 100%; background: #00f2ff; }
+        #egg-fill { width: 100%; height: 100%; background: #ff0055; }
+        
+        #inventory { position: absolute; top: 20px; right: 20px; color: #00f2ff; background: rgba(0,0,0,0.7); padding: 15px; border: 1px solid #00f2ff; border-radius: 8px; }
+        
+        #search-box { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 200; }
+        #item-input { padding: 12px; width: 320px; border: 2px solid #00f2ff; background: #111; color: #fff; border-radius: 5px; text-align: center; }
+
+        #hand-visual { 
+            position: absolute; bottom: -30px; right: 10%; 
+            width: 220px; height: 350px; 
+            background: #444; border: 5px solid #222; border-radius: 20px;
+            z-index: 150; transition: 0.1s;
+        }
+        
+        #flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; z-index: 2000; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+
+<div id="flash"></div>
+<div id="crosshair"></div>
+<div id="action-text">BOMBA ACTIVATĂ!</div>
+
+<div id="ui">
+    <div id="timer" style="font-size: 30px; color: #ff0055; font-weight: bold;">10:00</div>
+    <div style="font-size: 12px; margin-top:10px;">ENERGIE SAVANT</div>
+    <div class="bar-container"><div id="energy-fill"></div></div>
+    <div style="font-size: 12px;">PROGRES OU</div>
+    <div class="bar-container"><div id="egg-fill"></div></div>
+</div>
+
+<div id="inventory">
+    <b>REZERVE:</b><br>
+    BOMBE: <span id="count-bomba">0</span><br>
+    ACID: <span id="count-acid">0</span><br>
+    LASER: <span id="count-laser">0</span>
+</div>
+
+<div id="search-box">
+    <input type="text" id="item-input" placeholder="Caută resurse (ex: bomba, acid)...">
+</div>
+
+<div id="hand-visual">
+    <div id="cur-item-label" style="text-align:center; color:cyan; margin-top:20px; font-weight:bold; font-size:18px;">MÂNĂ GOALĂ</div>
+</div>
+
+<canvas id="game-canvas"></canvas>
+
+<script>
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+
+let energy = 100;
+let eggHP = 1000000;
+let maxEggHP = 1000000;
+let timeLeft = 600;
+let player = { x: 5, y: 5, dir: 0 };
+let egg = { x: 12, y: 12 };
+let keys = {};
+let inventory = { bomba: 0, acid: 0, laser: 0 };
+
+canvas.onclick = () => canvas.requestPointerLock();
+document.onmousemove = e => { if(document.pointerLockElement) player.dir += e.movementX * 0.003; };
+window.onkeydown = e => keys[e.code] = true;
+window.onkeyup = e => keys[e.code] = false;
+
+document.getElementById('item-input').onkeypress = (e) => {
+    if(e.key === 'Enter') {
+        let val = e.target.value.toLowerCase();
+        if(energy >= 30) {
+            if(val.includes("bomba")) { inventory.bomba++; energy -= 40; showAction("AI GĂSIT O BOMBĂ!"); }
+            else if(val.includes("acid")) { inventory.acid += 10; energy -= 25; showAction("AI GĂSIT ACID!"); }
+            else if(val.includes("laser")) { inventory.laser += 30; energy -= 30; showAction("AI GĂSIT LASER!"); }
+            updateUI();
+        }
+        e.target.value = "";
+    }
+};
+
+function showAction(text) {
+    const el = document.getElementById('action-text');
+    el.innerText = text;
+    el.style.opacity = "1";
+    setTimeout(() => el.style.opacity = "0", 1000);
+}
+
+function updateUI() {
+    document.getElementById('count-bomba').innerText = inventory.bomba;
+    document.getElementById('count-acid').innerText = inventory.acid;
+    document.getElementById('count-laser').innerText = inventory.laser;
+    document.getElementById('energy-fill').style.width = energy + "%";
+    document.getElementById('egg-fill').style.width = (eggHP/maxEggHP * 100) + "%";
+    
+    // Scrie pe mâna ce obiect ai pregătit
+    let label = "MÂNĂ GOALĂ";
+    if(inventory.bomba > 0) label = "BOMBĂ (GATA)";
+    else if(inventory.laser > 0) label = "LASER (GATA)";
+    else if(inventory.acid > 0) label = "ACID (GATA)";
+    document.getElementById('cur-item-label').innerText = label;
+}
+
+window.onmousedown = () => {
+    if(!document.pointerLockElement) return;
+    let dist = Math.sqrt((egg.x - player.x)**2 + (egg.y - player.y)**2);
+    let dmg = 100;
+    let usedText = "LOVITURĂ CU MÂNA";
+
+    if(inventory.bomba > 0) {
+        dmg = 200000; inventory.bomba--; usedText = "!!! EXPLOZIE BOMBĂ !!!";
+        if(dist < 5) {
+            document.getElementById('flash').style.opacity = "1";
+            setTimeout(() => document.getElementById('flash').style.opacity = "0", 300);
+            player.x -= Math.cos(player.dir) * 4;
+            player.y -= Math.sin(player.dir) * 4;
+        }
+    } else if(inventory.laser > 0) {
+        dmg = 8000; inventory.laser--; usedText = "FASCICUL LASER";
+    } else if(inventory.acid > 0) {
+        dmg = 3000; inventory.acid--; usedText = "STROPIT CU ACID";
+    }
+
+    showAction(usedText);
+    if(dist < 8) {
+        eggHP -= dmg;
+        updateUI();
+    }
+    document.getElementById('hand-visual').style.transform = "translateY(50px) rotate(5deg)";
+    setTimeout(() => document.getElementById('hand-visual').style.transform = "none", 100);
+};
+
+function update() {
+    let speed = 0.06;
+    if(keys['KeyW']) { player.x += Math.cos(player.dir)*speed; player.y += Math.sin(player.dir)*speed; }
+    if(keys['KeyS']) { player.x -= Math.cos(player.dir)*speed; player.y -= Math.sin(player.dir)*speed; }
+    
+    if(energy < 100) energy += 0.08;
+    updateUI();
+
+    timeLeft -= 1/60;
+    let m = Math.floor(timeLeft/60), s = Math.floor(timeLeft%60);
+    document.getElementById('timer').innerText = `${m}:${s<10?'0'+s:s}`;
+
+    if(timeLeft <= 0) { alert("OUL A ECLOZAT! GAME OVER."); location.reload(); }
+    if(eggHP <= 0) { alert("BRAVO GABI! AI SALVAT LUMEA!"); location.reload(); }
+
+    draw();
+    requestAnimationFrame(update);
+}
+
+function draw() {
+    ctx.fillStyle = "#1a1a1a"; ctx.fillRect(0,0,canvas.width, canvas.height/2);
+    ctx.fillStyle = "#222"; ctx.fillRect(0,canvas.height/2,canvas.width, canvas.height/2);
+
+    const fov = 1.1;
+    for(let i=0; i<canvas.width; i+=4) {
+        let angle = player.dir - fov/2 + (i/canvas.width)*fov;
+        let d = 0, hit = 0;
+        let rx = Math.cos(angle), ry = Math.sin(angle);
+        while(d < 20 && hit === 0) {
+            d += 0.1;
+            let tx = Math.floor(player.x + rx*d), ty = Math.floor(player.y + ry*d);
+            if(tx < 0 || tx > 19 || ty < 0 || ty > 19) hit = 1;
+        }
+        let h = canvas.height / (d * Math.cos(angle - player.dir));
+        ctx.fillStyle = `rgb(${90-d}, ${95-d}, 100)`;
+        ctx.fillRect(i, (canvas.height-h)/2, 4, h);
+
+        let sAngle = Math.atan2(egg.y - player.y, egg.x - player.x) - player.dir;
+        if(sAngle < -Math.PI) sAngle += Math.PI*2;
+        if(sAngle > Math.PI) sAngle -= Math.PI*2;
+        if(Math.abs(sAngle) < fov/2) {
+            let sDist = Math.sqrt((egg.x-player.x)**2 + (egg.y-player.y)**2);
+            if(sDist < d) {
+                let sSize = canvas.height / sDist;
+                let screenX = (sAngle / fov + 0.5) * canvas.width;
+                ctx.fillStyle = "#ff00ff";
+                ctx.beginPath(); ctx.ellipse(screenX, canvas.height/2, sSize/3, sSize/2, 0, 0, Math.PI*2); ctx.fill();
+            }
+        }
+    }
+}
+window.onresize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+window.onresize();
+update();
+</script>
+</body>
+</html>

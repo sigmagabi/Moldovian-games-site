@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>GABI'S CASE PRO - REPARAT</title>
+    <style>
+        :root { --p-green: #d4e157; --ivory: #fffff0; }
+        body { margin: 0; background: #f0f2f5; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        
+        #main-layout { display: flex; background: white; padding: 30px; border-radius: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.1); gap: 40px; max-width: 1000px; }
+
+        /* TELEFONUL */
+        #phone-preview {
+            width: 250px; height: 500px; background: #222; border-radius: 45px;
+            position: relative; border: 10px solid #111; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        #camera { position: absolute; top: 25px; left: 25px; width: 75px; height: 75px; background: rgba(0,0,0,0.5); border-radius: 18px; z-index: 10; }
+        #case-layer { position: absolute; width: 100%; height: 100%; top: 0; left: 0; z-index: 5; }
+
+        /* CONTROALE */
+        #sidebar { width: 450px; }
+        .tool-box { background: #f9f9f9; padding: 15px; border-radius: 15px; margin-bottom: 15px; border: 1px solid #eee; }
+        h2 { font-size: 20px; margin: 0 0 10px 0; border-left: 5px solid var(--p-green); padding-left: 10px; }
+
+        .grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .c-opt { width: 32px; height: 32px; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .s-opt { font-size: 28px; cursor: pointer; padding: 5px; background: white; border-radius: 8px; border: 1px solid #ddd; transition: 0.2s; }
+        .s-opt:hover { background: var(--p-green); transform: scale(1.1); }
+
+        /* TEXT TOOL */
+        .text-input-group { display: flex; gap: 10px; margin-top: 10px; }
+        input[type="text"] { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid #ddd; }
+
+        /* BUTTONS */
+        .edit-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .btn { padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.2s; font-size: 12px; }
+        .btn-edit { background: #333; color: white; }
+        .btn-save { background: var(--p-green); color: #333; grid-column: span 3; font-size: 16px; margin-top: 10px; }
+        .btn:hover { opacity: 0.8; transform: translateY(-2px); }
+
+        /* ELEMENT PLASAT */
+        .placed { position: absolute; cursor: grab; user-select: none; transform-origin: center; white-space: nowrap; }
+        .placed:active { cursor: grabbing; }
+        .selected { outline: 2px dashed var(--p-green); border-radius: 5px; }
+
+        /* GALLERY */
+        #gallery { width: 100%; max-width: 1000px; margin-top: 30px; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center; }
+        #save-list { display: flex; gap: 15px; overflow-x: auto; padding: 15px; min-height: 100px; }
+        .saved-case { min-width: 120px; height: 200px; border-radius: 20px; border: 4px solid #eee; position: relative; font-size: 12px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="main-layout">
+    <div id="phone-preview">
+        <div id="camera"></div>
+        <div id="case-layer"></div>
+    </div>
+
+    <div id="sidebar">
+        <h2>🛠️ GABI CASE STUDIO PRO</h2>
+        
+        <div class="tool-box">
+            <label style="font-size: 12px; font-weight: bold; color: #888;">1. CULOARE HUSĂ</label>
+            <div class="grid" style="margin-top: 10px;">
+                <div class="c-opt" style="background:#d4e157" onclick="setBg('#d4e157')"></div>
+                <div class="c-opt" style="background:#fffff0" onclick="setBg('#fffff0')"></div>
+                <div class="c-opt" style="background:#fab1a0" onclick="setBg('#fab1a0')"></div>
+                <div class="c-opt" style="background:#74b9ff" onclick="setBg('#74b9ff')"></div>
+                <div class="c-opt" style="background:#2d3436" onclick="setBg('#2d3436')"></div>
+                <input type="color" onchange="setBg(this.value)" style="width:30px; height:30px; border:none; cursor:pointer;">
+            </div>
+        </div>
+
+        <div class="tool-box">
+            <label style="font-size: 12px; font-weight: bold; color: #888;">2. ADAUGĂ TEXT & STICKERE</label>
+            <div class="text-input-group">
+                <input type="text" id="userTxt" placeholder="Scrie ceva...">
+                <button class="btn btn-edit" onclick="addObj(document.getElementById('userTxt').value, true)">ADAUGĂ</button>
+            </div>
+            <div class="grid" style="margin-top: 15px;">
+                <div class="s-opt" onclick="addObj('🚀')">🚀</div><div class="s-opt" onclick="addObj('🔥')">🔥</div>
+                <div class="s-opt" onclick="addObj('⚽')">⚽</div><div class="s-opt" onclick="addObj('🎮')">🎮</div>
+                <div class="s-opt" onclick="addObj('✨')">✨</div><div class="s-opt" onclick="addObj('💎')">💎</div>
+            </div>
+        </div>
+
+        <div class="tool-box">
+            <label style="font-size: 12px; font-weight: bold; color: #888;">3. EDITARE ELEMENT SELECTAT</label>
+            <div class="edit-btns">
+                <button class="btn btn-edit" onclick="modify('size', 1.2)">MĂREȘTE +</button>
+                <button class="btn btn-edit" onclick="modify('size', 0.8)">MICȘOREAZĂ -</button>
+                <button class="btn btn-edit" onclick="modify('rotate', 15)">ROTEȘTE ↻</button>
+            </div>
+            <button class="btn btn-save" onclick="saveToGallery()">💾 SALVEAZĂ HUSA ÎN GALERIE</button>
+            <button class="btn" style="width:100%; margin-top:10px; background:#eee;" onclick="softReset()">Golește Editorul (Păstrează Galeria)</button>
+        </div>
+    </div>
+</div>
+
+<div id="gallery">
+    <h3>📂 GALERIA MEA DE PROIECTE (GABI SAVANT)</h3>
+    <div id="save-list"></div>
+</div>
+
+<script>
+    let selectedEl = null;
+    const layer = document.getElementById('case-layer');
+    const phone = document.getElementById('phone-preview');
+
+    function setBg(c) { phone.style.background = c; }
+
+    function addObj(content, isText = false) {
+        if(!content) return;
+        const el = document.createElement('div');
+        el.className = 'placed';
+        el.innerText = content;
+        el.style.left = '80px';
+        el.style.top = '200px';
+        el.style.fontSize = isText ? '24px' : '45px';
+        el.style.color = isText ? '#fff' : 'inherit';
+        el.dataset.scale = 1;
+        el.dataset.rotate = 0;
+
+        el.onmousedown = function(e) {
+            if(selectedEl) selectedEl.classList.remove('selected');
+            selectedEl = el;
+            selectedEl.classList.add('selected');
+
+            let shiftX = e.clientX - el.getBoundingClientRect().left;
+            let shiftY = e.clientY - el.getBoundingClientRect().top;
+
+            function moveAt(pageX, pageY) {
+                let rect = phone.getBoundingClientRect();
+                el.style.left = (pageX - rect.left - shiftX) + 'px';
+                el.style.top = (pageY - rect.top - shiftY) + 'px';
+            }
+
+            function onMouseMove(ev) { moveAt(ev.pageX, ev.pageY); }
+            document.addEventListener('mousemove', onMouseMove);
+
+            document.onmouseup = function() {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.onmouseup = null;
+            };
+        };
+
+        el.oncontextmenu = (e) => { e.preventDefault(); el.remove(); };
+        layer.appendChild(el);
+        selectedEl = el;
+    }
+
+    function modify(type, val) {
+        if(!selectedEl) { alert("Selectează mai întâi un sticker/text!"); return; }
+        if(type === 'size') selectedEl.dataset.scale = parseFloat(selectedEl.dataset.scale) * val;
+        if(type === 'rotate') selectedEl.dataset.rotate = parseInt(selectedEl.dataset.rotate) + val;
+        selectedEl.style.transform = `scale(${selectedEl.dataset.scale}) rotate(${selectedEl.dataset.rotate}deg)`;
+    }
+
+    // FUNCȚIA NOUĂ DE RESET (NU ȘTERGE GALERIA)
+    function softReset() {
+        layer.innerHTML = ''; // Șterge toate stickerele/textele
+        phone.style.background = '#222'; // Pune culoarea de bază înapoi
+        selectedEl = null;
+    }
+
+    function saveToGallery() {
+        const list = document.getElementById('save-list');
+        const card = document.createElement('div');
+        card.className = 'saved-case';
+        card.style.background = phone.style.background || '#222';
+        
+        let txt = "";
+        layer.querySelectorAll('.placed').forEach(i => txt += i.innerText);
+        card.innerText = txt.substring(0, 8) + (txt.length > 8 ? "..." : "");
+        
+        list.appendChild(card);
+        alert("Salvat! Poți începe un design nou.");
+    }
+</script>
+</body>
+</html>

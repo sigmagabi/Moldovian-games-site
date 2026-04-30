@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gremlin – versiune fix (cu gură 👄)</title>
+<style>
+  :root{--bg:#0b0f1a;--panel:#101a2e;--ink:#eaf2ff;--line:#233258;--accent:#58ffa7}
+  html,body{margin:0;height:100%;background:#0b0f1a;color:var(--ink);font-family:system-ui,Segoe UI,Arial}
+  .wrap{max-width:980px;margin:16px auto;padding:0 12px}
+  h1{margin:8px 0 12px;text-align:center}
+  .tabs{display:flex;gap:8px;justify-content:center;margin:6px 0 12px;flex-wrap:wrap}
+  .tab{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:#0f1830;cursor:pointer}
+  .tab.active{background:#17264a}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 6px 24px rgba(0,0,0,.35);margin-bottom:12px}
+  .grid{display:grid;grid-template-columns:1fr 1.4fr;gap:12px}
+  label{font-size:14px;opacity:.9}
+  select,button{width:100%;padding:10px;border-radius:10px;border:1px solid #2a3a62;background:#0e1730;color:#eaf2ff;font-weight:700}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  canvas{display:block;width:100%;height:auto;border-radius:12px;background:#061126}
+  .hidden{display:none}
+  .hint{font-size:12px;color:#a9b7d0}
+  .hud{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>👾 Gremlin – versiune fix (cu gură 👄)</h1>
+  <div class="tabs">
+    <button class="tab active" data-tab="v1">Creator</button>
+    <button class="tab" data-tab="v3">Oraș</button>
+  </div>
+
+  <section id="v1" class="view">
+    <div class="grid card">
+      <div>
+        <div class="row">
+          <div>
+            <label>Tip</label>
+            <select id="gType">
+              <option value="gizmo">Gizmo</option>
+              <option value="shadow">Shadow</option>
+              <option value="spark">Spark</option>
+              <option value="frost">Frost</option>
+            </select>
+          </div>
+          <div>
+            <label>Culoare</label>
+            <select id="gColor">
+              <option value="#7bd389">Verde deschis</option>
+              <option value="#4caf50">Verde intens</option>
+              <option value="#8ad0ff">Albastru</option>
+              <option value="#c297ff">Mov</option>
+              <option value="#ffd166">Galben</option>
+              <option value="#ffaa99">Somon</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div>
+            <label>Urechi</label>
+            <select id="gEars">
+              <option value="tri">Triunghi</option>
+              <option value="bat">Liliac</option>
+              <option value="stub">Scurte</option>
+            </select>
+          </div>
+          <div>
+            <label>Ochii</label>
+            <select id="gEyes">
+              <option value="round">Rotunzi</option>
+              <option value="cat">Felini</option>
+              <option value="glow">Strălucitori</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div>
+            <label>Model</label>
+            <select id="gPattern">
+              <option value="none">Fără</option>
+              <option value="stripes">Dungi</option>
+              <option value="spots">Puncte</option>
+              <option value="zigzag">Zig-zag</option>
+            </select>
+          </div>
+          <div>
+            <label>Accesoriu</label>
+            <select id="gAcc">
+              <option value="none">—</option>
+              <option value="goggles">Ochelari</option>
+              <option value="scarf">Fular</option>
+              <option value="cap">Șapcă</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:10px" class="row">
+          <button id="btnRandom">🎲 Random</button>
+          <button id="btnCreate">🧪 Creează</button>
+        </div>
+        <div style="margin-top:8px" class="row">
+          <button id="btnSave">⬇️ Salvează PNG</button>
+          <button id="btnRelease">🏙️ Eliberează în Oraș</button>
+        </div>
+        <p class="hint">Dacă nu vezi nimic, apasă „Creează”.</p>
+      </div>
+      <div>
+        <canvas id="cv1" width="900" height="540"></canvas>
+        <p id="gInfo" class="hint">—</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="v3" class="view hidden">
+    <div class="card">
+      <div class="hud">
+        <strong>Oraș</strong>
+        <span>🔥 Haos: <b id="hChaos">0</b></span>
+        <span>💡 Curent: <b id="hPow">100%</b></span>
+        <button id="startSim">Start</button>
+        <button id="pauseSim" disabled>Pauză</button>
+        <button id="resetSim">Reset</button>
+      </div>
+      <canvas id="cv3" width="900" height="540"></canvas>
+      <p class="hint">Eliberează gremlinul din „Creator” ca să apară aici.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Tabs
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(btn => btn.addEventListener('click', () => {
+    tabs.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+    document.getElementById(btn.dataset.tab).classList.remove('hidden');
+  }));
+
+  // Helper
+  const $ = id => document.getElementById(id);
+  function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+
+  // ===== Creator (v1) =====
+  const cv1 = $('cv1'), ctx1 = cv1.getContext('2d');
+  const gType=$('gType'), gColor=$('gColor'), gEars=$('gEars'), gEyes=$('gEyes'), gPattern=$('gPattern'), gAcc=$('gAcc');
+  const gInfo=$('gInfo');
+  let currentGremlin = null;
+
+  function drawGremlin(cfg){
+    const W=cv1.width,H=cv1.height;
+    ctx1.clearRect(0,0,W,H);
+    const grad=ctx1.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0,'#0b1528'); grad.addColorStop(1,'#081225');
+    ctx1.fillStyle=grad; ctx1.fillRect(0,0,W,H);
+    const fillEllipse=(x,y,rx,ry,c,a=1)=>{ctx1.save();ctx1.globalAlpha=a;ctx1.beginPath();ctx1.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx1.fillStyle=c;ctx1.fill();ctx1.restore();};
+    const tri=(x1,y1,x2,y2,x3,y3)=>{ctx1.beginPath();ctx1.moveTo(x1,y1);ctx1.lineTo(x2,y2);ctx1.lineTo(x3,y3);ctx1.closePath();ctx1.fillStyle=cfg.color;ctx1.fill();};
+    const cx=W*.5, cy=H*.58;
+
+    // umbră + corp + cap
+    ctx1.fillStyle='rgba(0,0,0,.35)'; ctx1.beginPath(); ctx1.ellipse(cx, cy+110, 130, 26, 0, 0, Math.PI*2); ctx1.fill();
+    fillEllipse(cx, cy, 130, 160, cfg.color, 0.95);
+    fillEllipse(cx, cy-140, 110, 85, cfg.color, 1);
+
+    // urechi
+    if(cfg.ears==='tri'){ tri(cx-130,cy-180,cx-40,cy-210,cx-70,cy-130); tri(cx+130,cy-180,cx+40,cy-210,cx+70,cy-130); }
+    else if(cfg.ears==='bat'){ tri(cx-125,cy-175,cx-155,cy-205,cx-95,cy-170); tri(cx+125,cy-175,cx+155,cy-205,cx+95,cy-170); }
+    else { fillEllipse(cx-105, cy-150, 26, 20, cfg.color,1); fillEllipse(cx+105, cy-150, 26, 20, cfg.color,1); }
+
+    // ochi
+    fillEllipse(cx-32, cy-155, 16, 12, '#fff',1);
+    fillEllipse(cx+32, cy-155, 16, 12, '#fff',1);
+    ctx1.fillStyle=(cfg.eyes==='glow')?'#69c':'#111';
+    ctx1.beginPath(); ctx1.arc(cx-32, cy-155, 6, 0, Math.PI*2); ctx1.arc(cx+32, cy-155, 6, 0, Math.PI*2); ctx1.fill();
+
+    // GURĂ 👄 — mic zâmbet + buza inferioară
+    ctx1.strokeStyle='#f55'; ctx1.lineWidth=4;
+    ctx1.beginPath(); ctx1.arc(cx, cy-132, 16, 0, Math.PI, false); ctx1.stroke(); // contur zâmbet
+    ctx1.fillStyle='#f77';
+    ctx1.beginPath(); ctx1.arc(cx, cy-128, 8, 0, Math.PI, true); ctx1.fill();    // buza
+
+    // model pe corp
+    if(cfg.pattern==='stripes'){ for(let i=-100;i<=100;i+=26){ fillEllipse(cx+i, cy+16, 9, 150, 'rgba(0,0,0,0.12)',1);} }
+    if(cfg.pattern==='spots'){ for(let i=0;i<16;i++){ const x=cx+(Math.random()*200-100), y=cy+(Math.random()*180-60); fillEllipse(x,y,9+Math.random()*8,9+Math.random()*8,'rgba(0,0,0,0.18)',1);} }
+    if(cfg.pattern==='zigzag'){ ctx1.strokeStyle='rgba(255,255,255,0.15)'; ctx1.lineWidth=3; ctx1.beginPath(); let x=cx-80,y=cy-30; for(let k=0;k<12;k++){ ctx1.lineTo(x,y); x+=14; y += (k%2? -12:12); } ctx1.stroke(); }
+
+    // accesorii
+    if(cfg.acc==='goggles'){ ctx1.fillStyle='#222'; ctx1.fillRect(cx-60,cy-190,120,20); ctx1.strokeStyle='#66e'; ctx1.lineWidth=4; ctx1.beginPath(); ctx1.arc(cx-35, cy-180, 20, 0, Math.PI*2); ctx1.arc(cx+35, cy-180, 20, 0, Math.PI*2); ctx1.stroke(); }
+    if(cfg.acc==='scarf'){ ctx1.fillStyle='#e55'; ctx1.fillRect(cx-70, cy-70, 140, 18); ctx1.fillRect(cx+40, cy-52, 20, 54); }
+    if(cfg.acc==='cap'){ ctx1.fillStyle='#2b58ff'; ctx1.fillRect(cx-70, cy-208, 140, 36); ctx1.fillRect(cx-20, cy-195, 40, 10); }
+  }
+
+  function makeGremlin(){
+    const cfg={
+      type:gType.value, color:gColor.value, ears:gEars.value, eyes:gEyes.value, pattern:gPattern.value, acc:gAcc.value
+    };
+    currentGremlin = cfg;
+    drawGremlin(cfg);
+    gInfo.textContent = `Tip: ${cfg.type}, Culoare: ${cfg.color}, Urechi: ${cfg.ears}, Ochii: ${cfg.eyes}, Model: ${cfg.pattern}, Accesoriu: ${cfg.acc}`;
+  }
+
+  $('btnCreate').addEventListener('click', makeGremlin);
+  $('btnRandom').addEventListener('click', () => {
+    [gType,gColor,gEars,gEyes,gPattern,gAcc].forEach(sel => {
+      const i=(Math.random()*sel.options.length)|0; sel.selectedIndex=i;
+    });
+    makeGremlin();
+  });
+  $('btnSave').addEventListener('click', () => {
+    if(!currentGremlin) makeGremlin();
+    const a=document.createElement('a');
+    a.href=cv1.toDataURL('image/png');
+    a.download='gremlin_cu_gura.png';
+    a.click();
+  });
+  $('btnRelease').addEventListener('click', () => {
+    if(!currentGremlin) makeGremlin();
+    document.querySelector('.tab[data-tab="v3"]').click();
+    resetCity(true);
+  });
+
+  // Creează automat un gremlin la pornire
+  makeGremlin();
+
+  // ===== Oraș (v3 simplificat) =====
+  const cv3=$('cv3'), ctx3=cv3.getContext('2d');
+  const hChaos=$('hChaos'), hPow=$('hPow');
+  const startSim=$('startSim'), pauseSim=$('pauseSim'), resetSim=$('resetSim');
+  let city=null, grems=[], cops=[], running=false, paused=false, lastT=0;
+
+  function buildCity(){
+    const W=cv3.width,H=cv3.height;
+    const blocks=[], cols=6, rows=3, pad=20, bw=(W-pad*2)/cols, bh=(H-pad*2)/rows;
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+      blocks.push({x:pad+c*bw+8,y:pad+r*bh+8,w:bw-16,h:bh-16,blackout:false});
+    }
+    const transf=[]; for(let i=0;i<4;i++) transf.push({x:60+Math.random()*(W-120),y:60+Math.random()*(H-120),on:true});
+    const people=[]; for(let i=0;i<22;i++) people.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*0.5,vy:(Math.random()-.5)*0.5,scared:false});
+    return {blocks,transf,people,chaos:0,power:100};
+  }
+
+  function gremlinFromCfg(cfg,x,y){ return {x,y,r:10,color:cfg.color||'#7bd389',spd:1.1,target:null,cooldown:0}; }
+
+  function resetCity(inject=false){
+    city=buildCity(); grems=[]; cops=[];
+    if(inject && currentGremlin){ grems.push(gremlinFromCfg(currentGremlin, cv3.width/2, cv3.height/2)); }
+    else { grems.push(gremlinFromCfg({color:'#7bd389'}, cv3.width/2, cv3.height/2)); }
+    updateHud(); drawCity();
+    running=false; paused=false; lastT=0; pauseSim.disabled=true;
+  }
+
+  function updateHud(){ hChaos.textContent=Math.floor(city.chaos); hPow.textContent=Math.round(city.power)+'%'; }
+
+  function drawCity(){
+    const W=cv3.width,H=cv3.height;
+    ctx3.fillStyle='#051022'; ctx3.fillRect(0,0,W,H);
+    for(const b of city.blocks){
+      ctx3.fillStyle=b.blackout?'#0a1222':'#13213d'; ctx3.fillRect(b.x,b.y,b.w,b.h);
+      ctx3.fillStyle=b.blackout?'rgba(255,230,160,0.08)':'rgba(255,230,160,0.6)';
+      for(let i=8;i<b.w-8;i+=16) for(let j=8;j<b.h-8;j+=14){ if(Math.random()<0.2) continue; ctx3.fillRect(b.x+i,b.y+j,8,6); }
+    }
+    for(const t of city.transf){ ctx3.fillStyle=t.on?'#7fe08a':'#304a3a'; ctx3.beginPath(); ctx3.arc(t.x,t.y,8,0,Math.PI*2); ctx3.fill(); }
+    for(const p of city.people){ ctx3.fillStyle=p.scared?'#ffd166':'#9db4d6'; ctx3.beginPath(); ctx3.arc(p.x,p.y,3,0,Math.PI*2); ctx3.fill(); }
+    for(const g of grems){ ctx3.fillStyle=g.color; ctx3.beginPath(); ctx3.arc(g.x,g.y,g.r,0,Math.PI*2); ctx3.fill(); }
+  }
+
+  function step(dt){
+    for(const p of city.people){
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<10||p.x>cv3.width-10) p.vx*=-1;
+      if(p.y<10||p.y>cv3.height-10) p.vy*=-1;
+    }
+    for(const g of grems){
+      if(!g.target || Math.random()<.01){
+        const choice=Math.random();
+        if(choice<.33){ const b=city.blocks[(Math.random()*city.blocks.length)|0]; g.target={x:b.x+b.w/2,y:b.y+b.h/2,kind:'prank'}; }
+        else if(choice<.66){ const ons=city.transf.filter(t=>t.on); if(ons.length){ const t=ons[(Math.random()*ons.length)|0]; g.target={x:t.x,y:t.y,kind:'power',id:city.transf.indexOf(t)}; } }
+        else { const p=city.people[(Math.random()*city.people.length)|0]; g.target={x:p.x,y:p.y,kind:'scare',id:city.people.indexOf(p)}; }
+      }
+      const a=Math.atan2(g.target.y-g.y,g.target.x-g.x);
+      g.x+=Math.cos(a)*g.spd; g.y+=Math.sin(a)*g.spd;
+      if(Math.hypot(g.x-g.target.x,g.y-g.target.y)<12 && g.cooldown<=0){
+        if(g.target.kind==='prank'){ city.chaos+=1+Math.random()*2; }
+        if(g.target.kind==='power'){ const t=city.transf[g.target.id]; if(t && t.on){ t.on=false; city.power=Math.max(0,city.power-12); for(const b of city.blocks){ const cx=b.x+b.w/2,cy=b.y+b.h/2; if(Math.hypot(cx-g.target.x,cy-g.target.y)<120) b.blackout=true; } } }
+        if(g.target.kind==='scare'){ const p=city.people[g.target.id]; if(p) p.scared=true; city.chaos+=1; }
+        g.cooldown=1.2; g.target=null;
+      }else{ g.cooldown=Math.max(0,g.cooldown-dt); }
+    }
+    if(Math.random()<0.004){ const off=city.transf.filter(t=>!t.on); if(off.length){ off[(Math.random()*off.length)|0].on=true; city.power=clamp(city.power+5,0,100); } }
+    updateHud(); drawCity();
+  }
+
+  function loop(ts){
+    if(!running || paused){ lastT=ts; return; }
+    if(!lastT) lastT=ts;
+    const dt=Math.min(0.05,(ts-lastT)/1000); lastT=ts;
+    step(dt);
+    requestAnimationFrame(loop);
+  }
+
+  startSim.addEventListener('click',()=>{ running=true; paused=false; pauseSim.disabled=false; requestAnimationFrame(loop); });
+  pauseSim.addEventListener('click',()=>{ paused=!paused; pauseSim.textContent=paused?'Reia':'Pauză'; if(!paused) requestAnimationFrame(loop); });
+  resetSim.addEventListener('click',()=>resetCity(false));
+
+  // init
+  resetCity(false);
+});
+</script>
+</body>
+</html>
